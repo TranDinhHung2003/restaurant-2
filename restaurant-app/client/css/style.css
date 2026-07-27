@@ -606,11 +606,30 @@ textarea,input{font-family:inherit;}
 }
 
 /* ==========================================================================
-   RESPONSIVE — desktop preview (widget chính vẫn thiết kế mobile-first vì
-   khách quét QR bằng điện thoại)
+   RESPONSIVE — trên desktop
+   Trang thiết kế mobile-first (khách quét QR bằng điện thoại). Khi mở trên
+   màn hình lớn, "chiếc điện thoại" được đóng khung giữa nền xanh ngọc có
+   hoạ tiết — nhìn chủ đích và chuyên nghiệp thay vì một cột trắng trơ trọi.
    ========================================================================== */
 @media (min-width:640px){
-  body{max-width:480px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,0.06);min-height:100vh;}
+  html{
+    min-height:100%;
+    background:
+      radial-gradient(circle at 85% 8%, rgba(201,162,39,0.16), transparent 40%),
+      radial-gradient(circle at 8% 92%, rgba(46,110,88,0.5), transparent 45%),
+      radial-gradient(rgba(247,241,227,0.05) 1.5px, transparent 1.5px),
+      linear-gradient(160deg, #0D211A, #1C4B3D);
+    background-size:auto, auto, 26px 26px, auto;
+  }
+  body{
+    max-width:480px;
+    margin:28px auto;
+    min-height:calc(100vh - 56px);
+    border-radius:26px;
+    box-shadow:0 30px 80px rgba(0,0,0,0.45), 0 0 0 6px rgba(247,241,227,0.08);
+  }
+  .topbar{border-radius:26px 26px 0 0;top:28px;}
+  .tabs{top:92px;} /* 28px khoảng cách khung + ~64px chiều cao topbar */
   .topbar,.tabs{max-width:480px;margin:0 auto;}
   .cart-bar{max-width:448px;margin:0 auto;left:0;right:0;}
   .sheet__panel{max-width:480px;margin:0 auto;}
