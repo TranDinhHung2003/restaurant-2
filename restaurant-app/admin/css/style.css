@@ -142,9 +142,28 @@ body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--i
   padding:18px 16px;
 }
 .revenue-card--primary{border-color:var(--gold);background:linear-gradient(135deg,#FFFDF8 0%,#FBF3DC 100%);}
+.revenue-card--cost .revenue-card__value{color:var(--ink-soft);}
+.revenue-card--profit{border-color:var(--ok);background:linear-gradient(135deg,#F4FAF7 0%,#E4F1EA 100%);}
+.revenue-card--profit .revenue-card__value{color:var(--ok);font-size:26px;}
+.revenue-card--loss{border-color:var(--danger);background:linear-gradient(135deg,#FFF8F7 0%,#F3E3E1 100%);}
+.revenue-card--loss .revenue-card__value{color:var(--danger);font-size:26px;}
 .revenue-card__label{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
 .revenue-card__value{font-family:var(--font-mono);font-weight:700;font-size:22px;color:var(--lacquer);margin:0;}
 .revenue-card--primary .revenue-card__value{font-size:28px;color:var(--jade-700);}
+
+.expense-section{margin-top:8px;margin-bottom:16px;}
+.expense-section__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;}
+.expense-section__head h2{font-family:var(--font-display);font-size:18px;margin:0;color:var(--jade-700);}
+.expense-form{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;
+  background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:14px;margin-bottom:14px;
+}
+.expense-form .field{margin:0;min-width:140px;}
+.expense-form .field--grow{flex:1;min-width:180px;}
+.expense-form .btn{height:42px;margin-bottom:1px;}
+#expenseTable{margin-bottom:8px;}
+#expenseTable .empty-hint{text-align:center;padding:16px;}
 
 /* ---------- TOAST ---------- */
 .toast{

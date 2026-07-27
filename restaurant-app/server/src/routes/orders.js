@@ -1,6 +1,7 @@
 const express = require('express');
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
+const Expense = require('../models/Expense');
 const { getNextOrderNumber, resetCounter, getCurrentCounter } = require('../models/Counter');
 const { requireAdmin } = require('../middleware/auth');
 const { buildVietQrUrl } = require('../utils/vietqr');
@@ -126,31 +127,47 @@ router.get('/', requireAdmin, async (req, res) => {
 function buildRevenuePeriodMatch(period, dateKey) {
   let match = { ...PAID_REVENUE_MATCH };
   let periodLabel = '';
+  let dateFilter = null;
 
   if (period === 'day') {
     match.dateKey = dateKey;
+    dateFilter = { dateKey };
     periodLabel = formatDateLabel(dateKey);
   } else if (period === 'week') {
     const { startKey, endKey } = getWeekRange(dateKey);
     match.dateKey = { $gte: startKey, $lte: endKey };
+    dateFilter = { dateKey: { $gte: startKey, $lte: endKey } };
     periodLabel = `${formatDateLabel(startKey)} – ${formatDateLabel(endKey)}`;
   } else if (period === 'month') {
     const { startKey, endKey } = getMonthRange(dateKey);
     match.dateKey = { $gte: startKey, $lte: endKey };
+    dateFilter = { dateKey: { $gte: startKey, $lte: endKey } };
     const { year, month } = startKey.split('-').map(Number);
     periodLabel = `Tháng ${month}/${year}`;
   } else if (period === 'all') {
+    dateFilter = {};
     periodLabel = 'Toàn bộ';
   } else {
     return null;
   }
 
-  return { match, periodLabel };
+  return { match, periodLabel, dateFilter };
+}
+
+async function sumExpenses(dateFilter) {
+  const [row] = await Expense.aggregate([
+    { $match: dateFilter },
+    { $group: { _id: null, totalCost: { $sum: '$amount' }, count: { $sum: 1 } } },
+  ]);
+  return {
+    totalCost: row?.totalCost ?? 0,
+    expenseCount: row?.count ?? 0,
+  };
 }
 
 /**
  * GET /api/orders/revenue?period=day|week|month&date=YYYY-MM-DD
- * ADMIN — tổng doanh thu đã thanh toán theo ngày/tuần/tháng.
+ * ADMIN — doanh thu, chi phí nhập hàng, lãi theo ngày/tuần/tháng.
  */
 router.get('/revenue', requireAdmin, async (req, res) => {
   const period = req.query.period || 'day';
@@ -161,12 +178,17 @@ router.get('/revenue', requireAdmin, async (req, res) => {
   }
 
   const stats = await aggregateRevenue(built.match);
+  const costStats = await sumExpenses(built.dateFilter);
+  const profit = stats.totalRevenue - costStats.totalCost;
 
   res.json({
     period,
     dateKey,
     periodLabel: built.periodLabel,
     ...stats,
+    totalCost: costStats.totalCost,
+    expenseCount: costStats.expenseCount,
+    profit,
   });
 });
 

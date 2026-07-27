@@ -12,6 +12,7 @@ const orderRoutes = require('./routes/orders');
 const tableRoutes = require('./routes/tables');
 const authRoutes = require('./routes/auth');
 const paymentWebhookRoutes = require('./routes/paymentWebhook');
+const expenseRoutes = require('./routes/expenses');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +31,7 @@ app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/tables', tableRoutes);
 app.use('/api/payments', paymentWebhookRoutes); // webhook ngân hàng tự xác nhận VietQR
+app.use('/api/expenses', expenseRoutes); // chi phí nhập hàng + tính lãi
 
 // ---- Phục vụ giao diện tĩnh (tiện chạy demo local, 1 server cho tất cả) ----
 app.use('/', express.static(path.join(__dirname, '../../client')));

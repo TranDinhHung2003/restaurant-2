@@ -365,20 +365,57 @@ setInterval(async () => {
 }, 60000);
 
 /* =========================================================================
-   PANEL: DOANH THU
+   PANEL: DOANH THU + CHI PHÍ NHẬP HÀNG + LÃI
    ========================================================================= */
 let revenuePeriod = 'day';
+
+function formatDateKeyLabel(dateKey) {
+  if (!dateKey) return '—';
+  return dateKey.split('-').reverse().join('/');
+}
 
 async function loadRevenue() {
   const dateInput = document.getElementById('revenueDate');
   const date = dateInput.value || currentDateKey || todayDateInputValue();
-  const data = await apiFetch(`/api/orders/revenue?period=${revenuePeriod}&date=${date}`);
+  if (!document.getElementById('expenseDate').value) {
+    document.getElementById('expenseDate').value = date;
+  }
+
+  const [data, expenseData] = await Promise.all([
+    apiFetch(`/api/orders/revenue?period=${revenuePeriod}&date=${date}`),
+    apiFetch(`/api/expenses?period=${revenuePeriod}&date=${date}`),
+  ]);
 
   document.getElementById('revenuePeriodLabel').textContent = data.periodLabel;
   document.getElementById('revenueTotal').textContent = formatVnd(data.totalRevenue);
+  document.getElementById('revenueCost').textContent = formatVnd(data.totalCost);
   document.getElementById('revenueOrderCount').textContent = data.orderCount;
   document.getElementById('revenueCash').textContent = formatVnd(data.cashRevenue);
   document.getElementById('revenueVietqr').textContent = formatVnd(data.vietqrRevenue);
+
+  const profitEl = document.getElementById('revenueProfit');
+  const profitCard = profitEl.closest('.revenue-card');
+  profitEl.textContent = formatVnd(data.profit);
+  profitCard.classList.toggle('revenue-card--profit', data.profit >= 0);
+  profitCard.classList.toggle('revenue-card--loss', data.profit < 0);
+
+  renderExpenseTable(expenseData.expenses || []);
+}
+
+function renderExpenseTable(expenses) {
+  const body = document.getElementById('expenseTableBody');
+  if (!expenses.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty-hint">Chưa có khoản nhập hàng trong kỳ này.</td></tr>';
+    return;
+  }
+  body.innerHTML = expenses.map((e) => `
+    <tr>
+      <td>${formatDateKeyLabel(e.dateKey)}</td>
+      <td class="price">${formatVnd(e.amount)}</td>
+      <td>${e.note || '—'}</td>
+      <td><button class="btn btn--small btn--ghost" data-delete-expense="${e._id}" type="button">Xoá</button></td>
+    </tr>
+  `).join('');
 }
 
 document.getElementById('revenuePeriodTabs').addEventListener('click', (e) => {
@@ -390,11 +427,44 @@ document.getElementById('revenuePeriodTabs').addEventListener('click', (e) => {
   loadRevenue();
 });
 
-document.getElementById('revenueDate').addEventListener('change', () => loadRevenue());
+document.getElementById('revenueDate').addEventListener('change', () => {
+  document.getElementById('expenseDate').value = document.getElementById('revenueDate').value;
+  loadRevenue();
+});
+
+document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const amount = Number(document.getElementById('expenseAmount').value);
+  const date = document.getElementById('expenseDate').value || currentDateKey || todayDateInputValue();
+  const note = document.getElementById('expenseNote').value.trim();
+  try {
+    await apiFetch('/api/expenses', {
+      method: 'POST',
+      body: JSON.stringify({ amount, date, note }),
+    });
+    document.getElementById('expenseAmount').value = '';
+    document.getElementById('expenseNote').value = '';
+    loadRevenue();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById('expenseTableBody').addEventListener('click', async (e) => {
+  const id = e.target.dataset.deleteExpense;
+  if (!id) return;
+  if (!confirm('Xoá khoản nhập hàng này?')) return;
+  try {
+    await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    loadRevenue();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 document.getElementById('resetRevenueBtn').addEventListener('click', async () => {
   const ok = confirm(
-    'Bạn có muốn reset doanh thu không?\n\nNếu reset, hệ thống sẽ mất hết dữ liệu doanh thu trước đó của kỳ đang xem. Thao tác không thể hoàn tác.'
+    'Bạn có muốn reset doanh thu không?\n\nNếu reset, hệ thống sẽ mất hết dữ liệu doanh thu trước đó của kỳ đang xem (đơn về chưa thanh toán). Chi phí nhập hàng vẫn giữ nguyên. Thao tác không thể hoàn tác.'
   );
   if (!ok) return;
 
@@ -410,6 +480,12 @@ document.getElementById('resetRevenueBtn').addEventListener('click', async () =>
     loadOrders();
   } catch (err) {
     alert(err.message);
+  }
+});
+
+socket.on('expense_updated', () => {
+  if (document.getElementById('panel-revenue').classList.contains('is-active')) {
+    loadRevenue();
   }
 });
 
