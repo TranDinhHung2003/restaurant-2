@@ -460,11 +460,21 @@ document.getElementById('payQrBtn').addEventListener('click', () => {
   openVietQr(currentOrder);
 });
 
+/** Dừng theo dõi chờ ngân hàng (khi đổi sang tiền mặt hoặc đã thanh toán). */
+let stopPaymentWatch = null;
+
 async function openVietQr(order){
   const qrSheet = document.getElementById('qrSheet');
   const statusEl = document.getElementById('qrStatus');
+  const hintEl = document.getElementById('qrHint');
+  const switchBtn = document.getElementById('switchToCashBtn');
   qrSheet.hidden = false;
   statusEl.textContent = 'Đang tạo mã QR…';
+  if (hintEl) hintEl.hidden = false;
+  if (switchBtn) {
+    switchBtn.hidden = false;
+    switchBtn.disabled = false;
+  }
 
   try {
     const res = await fetch(`${API_BASE}/api/orders/${order.orderId}/vietqr`);
@@ -475,35 +485,75 @@ async function openVietQr(order){
     document.getElementById('qrDesc').textContent = 'Nội dung chuyển khoản: ' + addInfo;
     statusEl.textContent = 'Đang chờ ngân hàng xác nhận tiền về…';
 
-    // Chỉ xác nhận khi giao dịch ngân hàng thành công (webhook) — không cần khách/admin bấm.
-    watchPaymentStatus(order.orderId);
+    if (stopPaymentWatch) stopPaymentWatch();
+    stopPaymentWatch = watchPaymentStatus(order.orderId);
   } catch {
     statusEl.textContent = 'Không tạo được mã QR, vui lòng thanh toán tiền mặt tại quầy.';
   }
 }
+
+document.getElementById('switchToCashBtn').addEventListener('click', async () => {
+  if (!currentOrder?.orderId) return;
+  const btn = document.getElementById('switchToCashBtn');
+  const statusEl = document.getElementById('qrStatus');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/${currentOrder.orderId}/payment-method`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: 'cash' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không đổi được sang tiền mặt');
+    }
+    if (stopPaymentWatch) {
+      stopPaymentWatch();
+      stopPaymentWatch = null;
+    }
+    statusEl.textContent = 'Đã đổi sang tiền mặt — thanh toán tại quầy khi nhận cơm.';
+    const hint = document.getElementById('qrHint');
+    if (hint) hint.hidden = true;
+    btn.hidden = true;
+    alert('Đã ghi nhận thanh toán tiền mặt. Hệ thống không còn chờ ngân hàng.');
+  } catch (err) {
+    btn.disabled = false;
+    alert(err.message || 'Có lỗi, vui lòng thử lại.');
+  }
+});
 
 function markPaymentSuccess() {
   const statusEl = document.getElementById('qrStatus');
   statusEl.textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
   const hint = document.getElementById('qrHint');
   if (hint) hint.hidden = true;
+  const switchBtn = document.getElementById('switchToCashBtn');
+  if (switchBtn) switchBtn.hidden = true;
 }
 
 /**
- * Theo dõi thanh toán: ưu tiên Socket.IO (ngân hàng webhook → realtime),
- * kèm poll dự phòng mỗi 3 giây tối đa ~5 phút.
+ * Theo dõi thanh toán: Socket.IO (webhook ngân hàng) + poll dự phòng.
+ * Trả về hàm stop() để huỷ khi đổi sang tiền mặt.
  */
 function watchPaymentStatus(orderId) {
   let settled = false;
-  const finish = () => {
-    if (settled) return;
-    settled = true;
-    markPaymentSuccess();
+  let socket = null;
+  let pollTimer = null;
+
+  const cleanup = () => {
     clearInterval(pollTimer);
     if (socket) {
       socket.off('payment_confirmed', onPaid);
       socket.disconnect();
+      socket = null;
     }
+  };
+
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    markPaymentSuccess();
+    cleanup();
   };
 
   const onPaid = (order) => {
@@ -512,25 +562,30 @@ function watchPaymentStatus(orderId) {
     }
   };
 
-  let socket = null;
   try {
     if (typeof io === 'function') {
       socket = io();
       socket.on('connect', () => socket.emit('join_order', orderId));
       socket.on('payment_confirmed', onPaid);
     }
-  } catch { /* fallback poll bên dưới */ }
+  } catch { /* fallback poll */ }
 
   let attempts = 0;
-  const pollTimer = setInterval(async () => {
+  pollTimer = setInterval(async () => {
     attempts++;
     try {
       const res = await fetch(`${API_BASE}/api/orders/${orderId}`);
       const order = await res.json();
       if (order.payment?.status === 'paid') finish();
-    } catch { /* bỏ qua lỗi tạm thời */ }
-    if (attempts >= 100) clearInterval(pollTimer); // ~5 phút
+      // Đã đổi sang tiền mặt từ nơi khác → dừng chờ ngân hàng
+      if (order.payment?.method === 'cash' && order.payment?.status !== 'paid') {
+        cleanup();
+      }
+    } catch { /* bỏ qua */ }
+    if (attempts >= 100) cleanup();
   }, 3000);
+
+  return cleanup;
 }
 
 // ---------------------------------------------------------------------------

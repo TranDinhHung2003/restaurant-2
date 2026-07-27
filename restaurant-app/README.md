@@ -108,9 +108,11 @@ từ **Casso / SePay / PayOS**:
    mã VietQR) và **số tiền** ≥ tổng đơn → `payment_status` = `paid`, đẩy realtime
    cho admin board và màn hình khách đang chờ QR. Sai nội dung / thiếu tiền → không tự xác nhận.
 
-**Tiền mặt** vẫn do admin xác nhận tay tại quầy.
+**Tiền mặt** vẫn do admin xác nhận tay tại quầy. Đơn VietQR admin **vẫn có thể**
+bấm **Xác nhận đã thanh toán** (khi webhook chưa cấu hình hoặc tiền về chậm).
+Khách đã mở VietQR mà muốn đổi sang tiền mặt → bấm **Đổi sang trả tiền mặt**.
 
-Chưa cấu hình webhook → VietQR sẽ ở trạng thái "Chờ ngân hàng" cho đến khi cấu hình xong.
+Chưa cấu hình webhook → VietQR không tự xác nhận; dùng nút xác nhận tay của admin.
 
 ## 7. Thông báo đơn hàng mới (popup + chuông reo)
 

@@ -181,12 +181,13 @@
         <p class="qr-box__desc" id="qrDesc">Nội dung: DH000</p>
       </div>
       <p class="qr-box__status" id="qrStatus">Đang chờ ngân hàng xác nhận tiền về…</p>
-      <p class="qr-box__hint" id="qrHint">Sau khi chuyển khoản thành công, hệ thống tự xác nhận — không cần báo nhân viên.</p>
-      <button class="btn btn--ghost btn--block" data-close>Đóng, tôi sẽ thanh toán bằng tiền mặt</button>
+      <p class="qr-box__hint" id="qrHint">Sau khi chuyển khoản thành công (và đã cấu hình webhook ngân hàng), hệ thống tự xác nhận. Admin cũng có thể xác nhận tay trên bảng điều khiển.</p>
+      <button class="btn btn--primary btn--block" id="switchToCashBtn" type="button">💵 Đổi sang trả tiền mặt</button>
+      <button class="btn btn--ghost btn--block" data-close>Đóng</button>
     </div>
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="js/app.js?v=20260727e"></script>
+  <script src="js/app.js?v=20260727f"></script>
 </body>
 </html>

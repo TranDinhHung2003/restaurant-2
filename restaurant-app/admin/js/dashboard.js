@@ -295,13 +295,13 @@ function renderOrders(justAdded = false) {
         <span class="order-card__total">${formatVnd(o.total)}</span>
         <span class="badge badge--${o.payment.status}">
           ${o.payment.status === 'paid'
-            ? (o.payment.method === 'vietqr' ? 'Đã CK (ngân hàng)' : 'Đã thanh toán')
-            : (o.payment.method === 'vietqr' ? 'Chờ ngân hàng' : 'Chưa thanh toán')}
+            ? (o.payment.method === 'vietqr' ? 'Đã CK' : 'Đã thanh toán')
+            : (o.payment.method === 'vietqr' ? 'Chờ CK / ngân hàng' : (o.payment.method === 'cash' ? 'Chờ thu tiền mặt' : 'Chưa thanh toán'))}
         </span>
       </div>
       <div class="order-card__actions">
         ${STATUS_NEXT[o.status] ? `<button class="btn btn--small btn--primary" data-action="status" data-id="${o._id}" data-next="${STATUS_NEXT[o.status]}">Chuyển: ${STATUS_LABEL[STATUS_NEXT[o.status]]}</button>` : ''}
-        ${o.payment.status !== 'paid' && o.payment.method !== 'vietqr' ? `<button class="btn btn--small btn--danger-outline" data-action="pay" data-id="${o._id}">Xác nhận đã thanh toán</button>` : ''}
+        ${o.payment.status !== 'paid' ? `<button class="btn btn--small btn--danger-outline" data-action="pay" data-id="${o._id}">Xác nhận đã thanh toán</button>` : ''}
         ${o.status !== 'cancelled' && o.status !== 'served' ? `<button class="btn btn--small btn--ghost" data-action="cancel" data-id="${o._id}">Huỷ đơn</button>` : ''}
       </div>
     </article>

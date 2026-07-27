@@ -295,17 +295,30 @@ router.get('/:id/vietqr', async (req, res) => {
 
 /**
  * PATCH /api/orders/:id/payment-method
- * PUBLIC — khách chọn "Tiền mặt" (không cần đăng nhập).
+ * PUBLIC — khách chọn / đổi hình thức thanh toán (cash | vietqr).
+ * Khi đổi sang tiền mặt sau khi đã mở VietQR: xoá mã CK chờ ngân hàng.
  */
 router.patch('/:id/payment-method', async (req, res) => {
   const { method } = req.body;
-  const order = await Order.findByIdAndUpdate(
-    req.params.id,
-    { 'payment.method': method },
-    { new: true }
-  );
+  if (!['cash', 'vietqr'].includes(method)) {
+    return res.status(400).json({ message: 'method phải là cash hoặc vietqr' });
+  }
+
+  const order = await Order.findById(req.params.id);
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+  if (order.payment.status === 'paid') {
+    return res.status(409).json({ message: 'Đơn đã thanh toán, không đổi được phương thức' });
+  }
+
+  order.payment.method = method;
+  if (method === 'cash') {
+    // Đổi sang tiền mặt → không còn chờ ngân hàng
+    order.payment.addInfo = '';
+  }
+  await order.save();
+
   req.app.get('io').to('admin_room').emit('order_updated', order);
+  req.app.get('io').to(`order_${order._id}`).emit('payment_method_changed', order);
   res.json(order);
 });
 
