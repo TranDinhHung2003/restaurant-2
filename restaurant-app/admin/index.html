@@ -21,6 +21,10 @@
         <button class="sidebar__link" data-panel="menu">🍚 Thực đơn</button>
         <button class="sidebar__link" data-panel="tables">🔗 Bàn &amp; QR</button>
       </nav>
+      <!-- Bật/tắt chuông báo đơn mới — trạng thái lưu lại giữa các lần đăng nhập -->
+      <button class="sidebar__sound" id="soundToggle" type="button" title="Bật/tắt chuông báo đơn hàng mới">
+        <span id="soundIcon">🔔</span> <span id="soundLabel">Chuông: Bật</span>
+      </button>
       <button class="sidebar__logout" id="logoutBtn">Đăng xuất</button>
     </aside>
 
@@ -76,6 +80,29 @@
     </main>
   </div>
 
+  <!-- ===== MODAL ĐƠN HÀNG MỚI ===== -->
+  <!-- Hiện to giữa màn hình + rung chuông ngay khi khách vừa đặt cơm, để bếp
+       không lỡ mất đơn dù đang bận không nhìn màn hình. -->
+  <div class="modal modal--alert" id="newOrderModal" hidden>
+    <div class="modal__backdrop"></div>
+    <div class="modal__panel modal__panel--order">
+      <p class="new-order__eyebrow">🔔 Đơn hàng mới</p>
+      <p class="new-order__number" id="newOrderNumber">--</p>
+      <p class="new-order__table" id="newOrderTable">Bàn —</p>
+      <ul class="new-order__items" id="newOrderItems"></ul>
+      <p class="new-order__note" id="newOrderNote" hidden></p>
+      <div class="new-order__total-row">
+        <span>Tổng tiền</span>
+        <strong id="newOrderTotal">0đ</strong>
+      </div>
+      <p class="new-order__queue" id="newOrderQueue" hidden></p>
+      <div class="new-order__actions">
+        <button class="btn btn--ghost" id="newOrderCloseBtn">Đóng</button>
+        <button class="btn btn--primary" id="newOrderAckBtn">✓ Bắt đầu chế biến</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== MODAL THÊM/SỬA MÓN ===== -->
   <div class="modal" id="menuModal" hidden>
     <div class="modal__backdrop" data-close></div>
@@ -103,8 +130,7 @@
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <script src="js/api.js?v=20260727"></script>
-  <script src="js/dashboard.js?v=20260727"></script>
+  <script src="js/api.js?v=20260727b"></script>
+  <script src="js/dashboard.js?v=20260727b"></script>
 </body>
 </html>

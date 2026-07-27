@@ -77,10 +77,12 @@ demo 1 lệnh duy nhất):
 4. Khách chọn thanh toán:
    - **Tiền mặt**: hệ thống ghi nhận, khách trả tại quầy.
    - **VietQR**: hệ thống hiện mã QR động (đúng số tiền + nội dung = mã đơn).
-5. **Admin** thấy đơn mới hiện ngay lập tức (không cần F5) ở tab **Đơn hàng**, cập
-   nhật trạng thái bếp (Chờ chế biến → Đang chế biến → Đã phục vụ) và bấm
-   **Xác nhận đã thanh toán** khi thu tiền / thấy tiền chuyển khoản về — hoặc để
-   hệ thống **tự xác nhận** qua webhook ngân hàng (mục 6).
+5. **Admin** thấy đơn mới hiện ngay lập tức (không cần F5) ở tab **Đơn hàng** —
+   kèm **popup to giữa màn hình + chuông reo 3 tiếng** để không lỡ đơn dù đang
+   bận không nhìn màn hình (xem mục 7). Admin cập nhật trạng thái bếp (Chờ chế
+   biến → Đang chế biến → Đã phục vụ) và bấm **Xác nhận đã thanh toán** khi thu
+   tiền / thấy tiền chuyển khoản về — hoặc để hệ thống **tự xác nhận** qua
+   webhook ngân hàng (mục 6).
 
 ## 5. Cách số thứ tự không bao giờ bị nhầm
 
@@ -109,7 +111,28 @@ từ các dịch vụ trung gian như **Casso, SePay, PayOS**:
 Chưa cấu hình webhook thì mọi thứ vẫn chạy bình thường: admin bấm tay
 **Xác nhận đã thanh toán** như cũ.
 
-## 7. Những phần nên nâng cấp khi đưa vào chạy thật (production)
+## 7. Thông báo đơn hàng mới (popup + chuông reo)
+
+Ngay khi khách bấm "Đặt cơm", trang admin (đang mở bất kỳ tab nào) sẽ:
+
+- Hiện **popup to giữa màn hình**: số thứ tự khổng lồ, số bàn, danh sách món,
+  ghi chú, tổng tiền — kèm nút **"✓ Bắt đầu chế biến"** (chuyển đơn sang trạng
+  thái "Đang chế biến" và đóng popup luôn, khỏi phải bấm 2 lần) hoặc **"Đóng"**.
+- **Reo chuông 3 tiếng** ("ting-ting-ting") — chuông được tự tạo bằng Web Audio
+  API ngay trong trình duyệt, KHÔNG cần file âm thanh hay thư viện tải từ CDN
+  ngoài, nên luôn hoạt động ổn định.
+- Nếu nhiều bàn đặt cùng lúc, các đơn tiếp theo được xếp vào **hàng đợi** (hiện
+  "+N đơn mới khác đang chờ xem" trong popup) — đóng đơn đang xem xong thì đơn
+  kế tiếp tự hiện lên và chuông reo lại, không bị bỏ lỡ đơn nào.
+- Có nút **🔔 Chuông: Bật/Tắt** ở cuối sidebar để admin tự tắt tiếng khi cần
+  (trạng thái được nhớ giữa các lần đăng nhập).
+
+> Lưu ý: trình duyệt chỉ cho phát âm thanh sau khi có tương tác của người dùng
+> trên trang (quy định chống tự động phát âm thanh làm phiền). Chuông sẽ hoạt
+> động ngay từ lượt bấm/gõ đầu tiên của admin sau khi tải trang — bấm vào menu
+> sidebar hoặc bất cứ đâu trên trang một lần là đủ.
+
+## 8. Những phần nên nâng cấp khi đưa vào chạy thật (production)
 
 - **Đăng nhập admin nhiều tài khoản**: hiện dùng 1 tài khoản trong `.env`. Nên tạo
   model `Admin` với mật khẩu hash bằng `bcrypt` nếu có nhiều nhân viên.

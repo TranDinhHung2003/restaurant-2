@@ -18,6 +18,111 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 });
 
 /* =========================================================================
+   CHUÔNG BÁO ĐƠN MỚI
+   Dùng Web Audio API tự tạo tiếng "ting-ting" — KHÔNG phụ thuộc file mp3
+   hay thư viện tải từ CDN ngoài (tránh lặp lại lỗi mất mã QR do CDN hỏng
+   đường dẫn). Trình duyệt chặn phát âm thanh tự động trước khi có tương
+   tác của người dùng, nên ta "mở khoá" AudioContext ngay lần bấm/gõ đầu
+   tiên trên trang — sau đó chuông reo được ngay khi đơn mới về.
+   ========================================================================= */
+let audioCtx = null;
+let soundEnabled = localStorage.getItem('admin_sound_enabled') !== 'off'; // mặc định BẬT
+
+function unlockAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+['click', 'keydown', 'touchstart'].forEach((evt) =>
+  document.addEventListener(evt, unlockAudio, { once: true, passive: true })
+);
+
+/** Phát 1 tiếng "ting" (2 nốt chuông chồng lên nhau, tắt dần tự nhiên). */
+function ringOnce() {
+  if (!soundEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  [880, 1320].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now + i * 0.12);
+    osc.stop(now + 1);
+  });
+}
+
+/** Chuông "ting-ting-ting" khi có đơn mới — dồn dập hơn 1 tiếng đơn để chắc bếp nghe thấy. */
+function ringNewOrder() {
+  ringOnce();
+  setTimeout(ringOnce, 260);
+  setTimeout(ringOnce, 520);
+}
+
+const soundToggle = document.getElementById('soundToggle');
+const soundLabel = document.getElementById('soundLabel');
+const soundIcon = document.getElementById('soundIcon');
+function renderSoundToggle() {
+  soundToggle.classList.toggle('is-muted', !soundEnabled);
+  soundIcon.textContent = soundEnabled ? '🔔' : '🔕';
+  soundLabel.textContent = 'Chuông: ' + (soundEnabled ? 'Bật' : 'Tắt');
+}
+soundToggle.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('admin_sound_enabled', soundEnabled ? 'on' : 'off');
+  renderSoundToggle();
+  if (soundEnabled) ringOnce(); // reo thử 1 tiếng để admin biết đã bật lại
+});
+renderSoundToggle();
+
+/* =========================================================================
+   MODAL ĐƠN HÀNG MỚI — hiện to giữa màn hình, xếp hàng nếu nhiều đơn về
+   liên tiếp (vd nhiều bàn đặt cùng lúc), reo chuông cho từng đơn.
+   ========================================================================= */
+const newOrderModal = document.getElementById('newOrderModal');
+const newOrderQueueEl = document.getElementById('newOrderQueue');
+let pendingNewOrders = []; // đơn mới đã reo chuông nhưng admin chưa "xem"
+
+function showNewOrderModal(order) {
+  document.getElementById('newOrderNumber').textContent = order.orderNumber;
+  document.getElementById('newOrderTable').textContent = 'Bàn ' + order.table;
+  document.getElementById('newOrderItems').innerHTML = order.items
+    .map((i) => `<li><span>${i.qty} × ${i.name}</span><span>${formatVnd(i.price * i.qty)}</span></li>`)
+    .join('');
+  const noteEl = document.getElementById('newOrderNote');
+  noteEl.hidden = !order.note;
+  noteEl.textContent = order.note ? '📝 Ghi chú: ' + order.note : '';
+  document.getElementById('newOrderTotal').textContent = formatVnd(order.total);
+
+  const rest = pendingNewOrders.length - 1;
+  newOrderQueueEl.hidden = rest <= 0;
+  newOrderQueueEl.textContent = rest > 0 ? `+ còn ${rest} đơn mới khác đang chờ xem` : '';
+
+  newOrderModal.hidden = false;
+  newOrderModal.dataset.orderId = order._id;
+}
+
+function closeNewOrderModal() {
+  newOrderModal.hidden = true;
+  pendingNewOrders.shift();
+  if (pendingNewOrders.length > 0) {
+    // Hiện đơn tiếp theo trong hàng đợi sau một nhịp ngắn, kèm reo chuông lại
+    setTimeout(() => { ringNewOrder(); showNewOrderModal(pendingNewOrders[0]); }, 450);
+  }
+}
+
+document.getElementById('newOrderCloseBtn').addEventListener('click', closeNewOrderModal);
+document.getElementById('newOrderAckBtn').addEventListener('click', async () => {
+  const id = newOrderModal.dataset.orderId;
+  try {
+    await apiFetch(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'preparing' }) });
+  } catch { /* đơn có thể đã đổi trạng thái từ nơi khác, bỏ qua lỗi */ }
+  closeNewOrderModal();
+});
+
+/* =========================================================================
    REALTIME — kết nối Socket.IO, join phòng admin để nhận đơn mới ngay lập tức
    ========================================================================= */
 const socket = io(); // cùng origin với trang admin
@@ -25,6 +130,17 @@ socket.on('connect', () => socket.emit('join_admin', getToken()));
 socket.on('new_order', (order) => {
   orders.unshift(order);
   renderOrders(true);
+
+  pendingNewOrders.push(order);
+  ringNewOrder();
+  if (pendingNewOrders.length === 1) {
+    showNewOrderModal(order);
+  } else {
+    // Modal đơn trước vẫn đang mở -> chỉ cập nhật số đơn còn chờ, không
+    // giật màn hình sang đơn mới (admin cần xử lý xong đơn đang xem trước).
+    newOrderQueueEl.hidden = false;
+    newOrderQueueEl.textContent = `+ còn ${pendingNewOrders.length - 1} đơn mới khác đang chờ xem`;
+  }
 });
 socket.on('order_updated', (updated) => {
   const idx = orders.findIndex((o) => o._id === updated._id);
@@ -229,25 +345,35 @@ async function loadTables() {
   renderTables(tables);
 }
 
+/**
+ * Sinh ảnh mã QR qua dịch vụ ảnh miễn phí api.qrserver.com (goqr.me) — không
+ * cần cài thư viện JS nào, không lo lỗi CDN/thư viện thiếu bản build cho
+ * trình duyệt (nguyên nhân gây mất mã QR trước đây). Cùng cách VietQR
+ * (img.vietqr.io) đang dùng trong app: chỉ là một URL ảnh, dùng thẳng
+ * trong thẻ <img>.
+ */
+function qrImageUrl(link, size = 220) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(link)}`;
+}
+
 function renderTables(tables) {
-  qrGrid.innerHTML = tables.map((t) => `
+  qrGrid.innerHTML = tables.map((t) => {
+    // qrCodeLink được server sinh sẵn từ PUBLIC_URL khi tạo bàn; bàn cũ
+    // (trước khi có tính năng này) thì fallback về domain hiện tại.
+    const link = t.qrCodeLink || `${window.location.origin}/?table=${encodeURIComponent(t.tableNumber)}`;
+    return `
     <div class="qr-card">
-      <canvas id="qr-${t._id}"></canvas>
+      <img class="qr-card__img" src="${qrImageUrl(link)}" width="150" height="150" alt="Mã QR bàn ${t.tableNumber}"
+        data-link="${link}"
+        onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'qr-card__error',textContent:'Không tải được ảnh QR. Đường dẫn: ${link}'}))">
       <p class="qr-card__number">Bàn ${t.tableNumber}</p>
+      <p class="qr-card__link">${link}</p>
       <div class="qr-card__actions">
-        <button class="btn btn--small btn--ghost" data-download="${t._id}" data-table="${t.tableNumber}">Tải ảnh</button>
+        <button class="btn btn--small btn--ghost" data-download data-link="${link}" data-table="${t.tableNumber}">Tải ảnh</button>
         <button class="btn btn--small btn--ghost" data-remove-table="${t._id}">Xoá</button>
       </div>
-    </div>
-  `).join('');
-
-  // Vẽ QR sau khi đã render xong canvas vào DOM.
-  // Dùng qr_code_link đã lưu trong DB (sinh từ PUBLIC_URL khi tạo bàn);
-  // bàn cũ chưa có thì fallback về domain hiện tại.
-  tables.forEach((t) => {
-    const url = t.qrCodeLink || `${window.location.origin}/?table=${encodeURIComponent(t.tableNumber)}`;
-    QRCode.toCanvas(document.getElementById(`qr-${t._id}`), url, { width: 150, margin: 1 });
-  });
+    </div>`;
+  }).join('');
 }
 
 document.getElementById('addTableForm').addEventListener('submit', async (e) => {
@@ -259,20 +385,31 @@ document.getElementById('addTableForm').addEventListener('submit', async (e) => 
 });
 
 qrGrid.addEventListener('click', async (e) => {
-  const removeId = e.target.dataset.removeTable;
-  const downloadId = e.target.dataset.download;
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const removeId = btn.dataset.removeTable;
 
   if (removeId) {
     if (!confirm('Xoá bàn này?')) return;
     await apiFetch(`/api/tables/${removeId}`, { method: 'DELETE' });
     loadTables();
   }
-  if (downloadId) {
-    const canvas = document.getElementById(`qr-${downloadId}`);
-    const link = document.createElement('a');
-    link.download = `ban-${e.target.dataset.table}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+  if ('download' in btn.dataset) {
+    // Ảnh QR đến từ domain khác (api.qrserver.com) nên không dùng
+    // canvas.toDataURL được — tải qua fetch() thành blob rồi mới lưu file,
+    // để tên file luôn là "ban-XX.png" thay vì mở tab ảnh mới.
+    try {
+      const res = await fetch(qrImageUrl(btn.dataset.link, 600));
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = `ban-${btn.dataset.table}.png`;
+      link.href = objectUrl;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      alert('Không tải được ảnh QR, vui lòng thử lại.');
+    }
   }
 });
 
