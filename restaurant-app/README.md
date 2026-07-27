@@ -89,7 +89,25 @@ demo 1 lệnh duy nhất):
 Backend dùng một collection `Counter` riêng, tăng số bằng thao tác **atomic**
 (`findOneAndUpdate` + `$inc`) trong MongoDB — nên dù 2 khách ở 2 bàn bấm "Đặt cơm"
 đúng cùng một thời điểm, mỗi người vẫn chắc chắn nhận một số khác nhau, đúng thứ tự
-ai bấm trước. Số reset về 1 mỗi ngày mới (xem `server/src/models/Counter.js`).
+ai bấm trước.
+
+- **Sang ngày mới** (theo `TIMEZONE`, mặc định `Asia/Ho_Chi_Minh`): số tự reset về 1.
+- **Reset tay**: trên tab **Đơn hàng** của admin, bấm **↻ Reset số thứ tự** để đánh
+  lại từ #1 trong ngày (không xoá đơn đã tạo).
+- Admin có thể chọn ngày trên bộ lọc để xem lại đơn của từng ngày.
+
+## 5b. Doanh thu ngày · tuần · tháng
+
+Tab **Doanh thu** trên admin tổng hợp số tiền **đã thanh toán** để kiểm đếm:
+
+| Thẻ | Phạm vi |
+|---|---|
+| Hôm nay / ngày chọn | 1 ngày (theo bộ lọc) |
+| Tuần này | Thứ 2 → Chủ nhật chứa ngày chọn |
+| Tháng này | Ngày 01 → cuối tháng |
+
+Mỗi thẻ còn hiện số đơn đã thu / chưa thu / đã huỷ để đối soát nhanh. API:
+`GET /api/orders/revenue?date=YYYY-MM-DD`.
 
 ## 6. Tự động xác nhận thanh toán VietQR (webhook ngân hàng)
 

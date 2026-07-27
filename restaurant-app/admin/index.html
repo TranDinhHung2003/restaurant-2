@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bảng điều khiển — Quán Nhà</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=20260727">
+<link rel="stylesheet" href="css/style.css?v=20260727c">
 </head>
 <body>
   <div class="app-shell">
@@ -18,6 +18,7 @@
       </div>
       <nav class="sidebar__nav">
         <button class="sidebar__link is-active" data-panel="orders">📋 Đơn hàng</button>
+        <button class="sidebar__link" data-panel="revenue">💰 Doanh thu</button>
         <button class="sidebar__link" data-panel="menu">🍚 Thực đơn</button>
         <button class="sidebar__link" data-panel="tables">🔗 Bàn &amp; QR</button>
       </nav>
@@ -34,8 +35,9 @@
       <!-- ===== PANEL: ĐƠN HÀNG ===== -->
       <section class="panel is-active" id="panel-orders">
         <header class="panel__header">
-          <h1>Đơn hàng hôm nay</h1>
+          <h1>Đơn hàng theo ngày</h1>
           <div class="panel__filters">
+            <input type="date" id="orderDateFilter" title="Chọn ngày xem đơn">
             <select id="statusFilter">
               <option value="">Tất cả trạng thái</option>
               <option value="pending">Chờ chế biến</option>
@@ -46,8 +48,38 @@
             <span class="live-dot"><i></i> Realtime</span>
           </div>
         </header>
+
+        <div class="order-toolbar" id="orderToolbar">
+          <div class="order-toolbar__info">
+            <span>Số thứ tự hôm nay: <strong id="counterSeq">—</strong></span>
+            <span class="order-toolbar__hint">Đơn tiếp theo: #<strong id="counterNext">—</strong></span>
+            <span class="order-toolbar__hint" id="counterDateHint"></span>
+          </div>
+          <button type="button" class="btn btn--small btn--danger-outline" id="resetCounterBtn"
+            title="Reset số thứ tự về #1. Không xoá đơn đã tạo. Sang ngày mới hệ thống tự đánh lại từ #1.">
+            ↻ Reset số thứ tự
+          </button>
+        </div>
+
         <div class="order-grid" id="orderGrid">
           <p class="empty-hint">Đang tải đơn hàng…</p>
+        </div>
+      </section>
+
+      <!-- ===== PANEL: DOANH THU ===== -->
+      <section class="panel" id="panel-revenue">
+        <header class="panel__header">
+          <h1>Doanh thu</h1>
+          <div class="panel__filters">
+            <input type="date" id="revenueDateFilter" title="Chọn ngày gốc để xem ngày / tuần / tháng">
+            <button type="button" class="btn btn--small btn--ghost" id="refreshRevenueBtn">Làm mới</button>
+          </div>
+        </header>
+        <p class="panel__lead">
+          Tổng tiền đã bán (đơn <strong>đã thanh toán</strong>), dùng để kiểm đếm theo ngày · tuần · tháng.
+        </p>
+        <div class="revenue-grid" id="revenueGrid">
+          <p class="empty-hint">Đang tải doanh thu…</p>
         </div>
       </section>
 
@@ -130,7 +162,7 @@
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="js/api.js?v=20260727b"></script>
-  <script src="js/dashboard.js?v=20260727b"></script>
+  <script src="js/api.js?v=20260727c"></script>
+  <script src="js/dashboard.js?v=20260727c"></script>
 </body>
 </html>

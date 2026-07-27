@@ -1,12 +1,60 @@
 const express = require('express');
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
-const { getNextOrderNumber } = require('../models/Counter');
+const {
+  getNextOrderNumber,
+  getCurrentOrderNumber,
+  resetOrderNumber,
+} = require('../models/Counter');
 const { requireAdmin } = require('../middleware/auth');
 const { buildVietQrUrl } = require('../utils/vietqr');
 const { isWithinHours } = require('../utils/hours');
+const { todayKey, weekRangeOf, monthRangeOf } = require('../utils/date');
 
 const router = express.Router();
+
+/**
+ * Gom thống kê doanh thu cho một khoảng dateKey [from, to] (bao gồm 2 đầu).
+ * - revenue: tổng tiền các đơn ĐÃ THANH TOÁN (không tính đơn huỷ)
+ * - unpaid: tổng tiền đơn còn chưa thanh toán (không tính đơn huỷ)
+ * - orderCount / paidCount / unpaidCount / cancelledCount
+ */
+async function summarizeRange(from, to) {
+  const orders = await Order.find({
+    dateKey: { $gte: from, $lte: to },
+  }).select('total status payment.status');
+
+  let revenue = 0;
+  let unpaid = 0;
+  let paidCount = 0;
+  let unpaidCount = 0;
+  let cancelledCount = 0;
+
+  for (const o of orders) {
+    if (o.status === 'cancelled') {
+      cancelledCount += 1;
+      continue;
+    }
+    if (o.payment?.status === 'paid') {
+      revenue += o.total;
+      paidCount += 1;
+    } else {
+      unpaid += o.total;
+      unpaidCount += 1;
+    }
+  }
+
+  return {
+    from,
+    to,
+    revenue,
+    unpaid,
+    orderCount: orders.length,
+    paidCount,
+    unpaidCount,
+    cancelledCount,
+  };
+}
 
 /**
  * POST /api/orders
@@ -45,7 +93,7 @@ router.post('/', async (req, res) => {
       total += menuItem.price * qty;
     }
 
-    const dateKey = new Date().toISOString().slice(0, 10);
+    const dateKey = todayKey();
     const orderNumber = await getNextOrderNumber();
 
     const order = await Order.create({
@@ -69,6 +117,77 @@ router.post('/', async (req, res) => {
     console.error(err);
     res.status(500).json({ message: 'Lỗi máy chủ khi tạo đơn hàng' });
   }
+});
+
+/* ------------------------- CÁC ROUTE DÀNH CHO ADMIN ------------------------- */
+/* Đặt TRƯỚC /:id để Express không nuốt nhầm path như "revenue" thành id. */
+
+/**
+ * GET /api/orders?date=YYYY-MM-DD&status=pending
+ * ADMIN — danh sách đơn hàng (mặc định lấy hôm nay theo múi giờ nhà hàng).
+ */
+router.get('/', requireAdmin, async (req, res) => {
+  const dateKey = req.query.date || todayKey();
+  const filter = { dateKey };
+  if (req.query.status) filter.status = req.query.status;
+
+  const orders = await Order.find(filter).sort({ orderNumber: -1 });
+  res.json(orders);
+});
+
+/**
+ * GET /api/orders/counter
+ * ADMIN — số thứ tự hiện tại của hôm nay + dateKey đang dùng.
+ */
+router.get('/counter', requireAdmin, async (req, res) => {
+  const dateKey = todayKey();
+  const seq = await getCurrentOrderNumber(dateKey);
+  res.json({ dateKey, seq, nextNumber: seq + 1 });
+});
+
+/**
+ * POST /api/orders/reset-counter
+ * ADMIN — reset số thứ tự hôm nay về 0 (đơn kế tiếp = #1).
+ * Không xoá đơn đã tạo. Dùng khi bắt đầu ca mới hoặc muốn đánh lại số.
+ * body (tuỳ chọn): { confirm: true } — bắt buộc để tránh bấm nhầm.
+ */
+router.post('/reset-counter', requireAdmin, async (req, res) => {
+  if (!req.body?.confirm) {
+    return res.status(400).json({
+      message: 'Gửi { "confirm": true } để xác nhận reset số thứ tự',
+    });
+  }
+  const result = await resetOrderNumber(todayKey());
+  req.app.get('io').to('admin_room').emit('counter_reset', result);
+  res.json({
+    message: 'Đã reset số thứ tự. Đơn tiếp theo sẽ là #1.',
+    ...result,
+    nextNumber: 1,
+  });
+});
+
+/**
+ * GET /api/orders/revenue
+ * ADMIN — doanh thu đã bán (đơn đã thanh toán) theo ngày / tuần / tháng.
+ * Query tuỳ chọn: ?date=YYYY-MM-DD để xem báo cáo quanh một ngày cụ thể.
+ */
+router.get('/revenue', requireAdmin, async (req, res) => {
+  const base = req.query.date || todayKey();
+  const week = weekRangeOf(base);
+  const month = monthRangeOf(base);
+
+  const [day, weekStats, monthStats] = await Promise.all([
+    summarizeRange(base, base),
+    summarizeRange(week.from, week.to),
+    summarizeRange(month.from, month.to),
+  ]);
+
+  res.json({
+    dateKey: base,
+    day,
+    week: weekStats,
+    month: monthStats,
+  });
 });
 
 /**
@@ -116,21 +235,6 @@ router.patch('/:id/payment-method', async (req, res) => {
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
   req.app.get('io').to('admin_room').emit('order_updated', order);
   res.json(order);
-});
-
-/* ------------------------- CÁC ROUTE DÀNH CHO ADMIN ------------------------- */
-
-/**
- * GET /api/orders?date=YYYY-MM-DD&status=pending
- * ADMIN — danh sách đơn hàng (mặc định lấy hôm nay).
- */
-router.get('/', requireAdmin, async (req, res) => {
-  const dateKey = req.query.date || new Date().toISOString().slice(0, 10);
-  const filter = { dateKey };
-  if (req.query.status) filter.status = req.query.status;
-
-  const orders = await Order.find(filter).sort({ orderNumber: -1 });
-  res.json(orders);
 });
 
 /**

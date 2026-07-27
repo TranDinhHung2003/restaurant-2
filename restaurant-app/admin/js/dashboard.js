@@ -9,6 +9,7 @@ document.querySelectorAll('.sidebar__link').forEach((link) => {
     document.querySelectorAll('.panel').forEach((p) => p.classList.remove('is-active'));
     link.classList.add('is-active');
     document.getElementById('panel-' + link.dataset.panel).classList.add('is-active');
+    if (link.dataset.panel === 'revenue') loadRevenue();
   });
 });
 
@@ -128,8 +129,12 @@ document.getElementById('newOrderAckBtn').addEventListener('click', async () => 
 const socket = io(); // cùng origin với trang admin
 socket.on('connect', () => socket.emit('join_admin', getToken()));
 socket.on('new_order', (order) => {
-  orders.unshift(order);
-  renderOrders(true);
+  // Chỉ gắn vào lưới nếu đang xem đúng ngày của đơn (thường là hôm nay)
+  if (order.dateKey === selectedOrderDate) {
+    orders.unshift(order);
+    renderOrders(true);
+  }
+  loadCounter();
 
   pendingNewOrders.push(order);
   ringNewOrder();
@@ -145,7 +150,15 @@ socket.on('new_order', (order) => {
 socket.on('order_updated', (updated) => {
   const idx = orders.findIndex((o) => o._id === updated._id);
   if (idx >= 0) orders[idx] = updated;
+  else if (updated.dateKey === selectedOrderDate) orders.unshift(updated);
   renderOrders();
+  // Thanh toán xong → doanh thu đổi, làm mới nếu đang mở tab Doanh thu
+  if (document.getElementById('panel-revenue').classList.contains('is-active')) {
+    loadRevenue();
+  }
+});
+socket.on('counter_reset', () => {
+  loadCounter();
 });
 
 /* =========================================================================
@@ -153,8 +166,21 @@ socket.on('order_updated', (updated) => {
    ========================================================================= */
 const orderGrid = document.getElementById('orderGrid');
 const statusFilter = document.getElementById('statusFilter');
+const orderDateFilter = document.getElementById('orderDateFilter');
 let orders = [];
 let lastNewOrderId = null;
+
+/** Ngày hôm nay theo máy admin (YYYY-MM-DD) — dùng làm mặc định cho bộ lọc. */
+function localTodayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+let selectedOrderDate = localTodayKey();
+orderDateFilter.value = selectedOrderDate;
 
 const STATUS_LABEL = {
   pending: 'Chờ chế biến',
@@ -164,12 +190,51 @@ const STATUS_LABEL = {
 };
 const STATUS_NEXT = { pending: 'preparing', preparing: 'served' }; // trạng thái kế tiếp gợi ý
 
-function formatVnd(n){ return n.toLocaleString('vi-VN') + 'đ'; }
+function formatVnd(n){ return Number(n || 0).toLocaleString('vi-VN') + 'đ'; }
+
+async function loadCounter() {
+  try {
+    const info = await apiFetch('/api/orders/counter');
+    document.getElementById('counterSeq').textContent = info.seq;
+    document.getElementById('counterNext').textContent = info.nextNumber;
+    document.getElementById('counterDateHint').textContent = `Ngày counter: ${info.dateKey}`;
+  } catch {
+    document.getElementById('counterSeq').textContent = '—';
+    document.getElementById('counterNext').textContent = '—';
+  }
+}
+
+document.getElementById('resetCounterBtn').addEventListener('click', async () => {
+  const ok = confirm(
+    'Reset số thứ tự hôm nay về #1?\n\n' +
+    '• Đơn tiếp theo sẽ nhận số #1\n' +
+    '• Không xoá đơn đã tạo\n' +
+    '• Sang ngày mới hệ thống vẫn tự đánh lại từ #1'
+  );
+  if (!ok) return;
+  try {
+    const result = await apiFetch('/api/orders/reset-counter', {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true }),
+    });
+    alert(result.message || 'Đã reset số thứ tự.');
+    loadCounter();
+  } catch (err) {
+    alert(err.message || 'Không reset được số thứ tự.');
+  }
+});
 
 async function loadOrders() {
-  orders = await apiFetch('/api/orders');
+  const q = new URLSearchParams({ date: selectedOrderDate });
+  orders = await apiFetch('/api/orders?' + q.toString());
   renderOrders();
+  loadCounter();
 }
+
+orderDateFilter.addEventListener('change', () => {
+  selectedOrderDate = orderDateFilter.value || localTodayKey();
+  loadOrders();
+});
 
 function renderOrders(justAdded = false) {
   const filter = statusFilter.value;
@@ -225,6 +290,47 @@ orderGrid.addEventListener('click', async (e) => {
 });
 
 statusFilter.addEventListener('change', () => renderOrders());
+
+/* =========================================================================
+   PANEL: DOANH THU
+   ========================================================================= */
+const revenueGrid = document.getElementById('revenueGrid');
+const revenueDateFilter = document.getElementById('revenueDateFilter');
+revenueDateFilter.value = localTodayKey();
+
+function revenueCard(title, rangeLabel, stats) {
+  return `
+    <article class="revenue-card">
+      <p class="revenue-card__eyebrow">${title}</p>
+      <p class="revenue-card__amount">${formatVnd(stats.revenue)}</p>
+      <p class="revenue-card__range">${rangeLabel}</p>
+      <ul class="revenue-card__meta">
+        <li><span>Đã thanh toán</span><strong>${stats.paidCount} đơn</strong></li>
+        <li><span>Chưa thu</span><strong>${formatVnd(stats.unpaid)} (${stats.unpaidCount})</strong></li>
+        <li><span>Tổng đơn</span><strong>${stats.orderCount}</strong></li>
+        <li><span>Đã huỷ</span><strong>${stats.cancelledCount}</strong></li>
+      </ul>
+    </article>
+  `;
+}
+
+async function loadRevenue() {
+  const date = revenueDateFilter.value || localTodayKey();
+  revenueGrid.innerHTML = '<p class="empty-hint">Đang tải doanh thu…</p>';
+  try {
+    const data = await apiFetch('/api/orders/revenue?date=' + encodeURIComponent(date));
+    revenueGrid.innerHTML = [
+      revenueCard('Hôm nay / ngày chọn', data.day.from, data.day),
+      revenueCard('Tuần này', `${data.week.from} → ${data.week.to}`, data.week),
+      revenueCard('Tháng này', `${data.month.from} → ${data.month.to}`, data.month),
+    ].join('');
+  } catch (err) {
+    revenueGrid.innerHTML = `<p class="empty-hint">Không tải được doanh thu: ${err.message}</p>`;
+  }
+}
+
+revenueDateFilter.addEventListener('change', loadRevenue);
+document.getElementById('refreshRevenueBtn').addEventListener('click', loadRevenue);
 
 /* =========================================================================
    PANEL: THỰC ĐƠN
