@@ -1,12 +1,44 @@
 const express = require('express');
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
-const { getNextOrderNumber } = require('../models/Counter');
+const { getNextOrderNumber, resetCounter, getCurrentCounter } = require('../models/Counter');
 const { requireAdmin } = require('../middleware/auth');
 const { buildVietQrUrl } = require('../utils/vietqr');
 const { isWithinHours } = require('../utils/hours');
+const { getDateKey, getWeekRange, getMonthRange, formatDateLabel } = require('../utils/dateKey');
 
 const router = express.Router();
+
+const PAID_REVENUE_MATCH = {
+  'payment.status': 'paid',
+  status: { $ne: 'cancelled' },
+};
+
+async function aggregateRevenue(match) {
+  const [summary] = await Order.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        totalRevenue: { $sum: '$total' },
+        orderCount: { $sum: 1 },
+        cashRevenue: {
+          $sum: { $cond: [{ $eq: ['$payment.method', 'cash'] }, '$total', 0] },
+        },
+        vietqrRevenue: {
+          $sum: { $cond: [{ $eq: ['$payment.method', 'vietqr'] }, '$total', 0] },
+        },
+      },
+    },
+  ]);
+
+  return {
+    totalRevenue: summary?.totalRevenue ?? 0,
+    orderCount: summary?.orderCount ?? 0,
+    cashRevenue: summary?.cashRevenue ?? 0,
+    vietqrRevenue: summary?.vietqrRevenue ?? 0,
+  };
+}
 
 /**
  * POST /api/orders
@@ -25,7 +57,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Thiếu table hoặc items' });
     }
 
-    // Lấy thông tin món thật từ DB, kiểm tra còn hàng
     const menuItems = await MenuItem.find({ _id: { $in: items.map((i) => i.id) } });
     const orderItems = [];
     let total = 0;
@@ -45,8 +76,8 @@ router.post('/', async (req, res) => {
       total += menuItem.price * qty;
     }
 
-    const dateKey = new Date().toISOString().slice(0, 10);
-    const orderNumber = await getNextOrderNumber();
+    const dateKey = getDateKey();
+    const orderNumber = await getNextOrderNumber(dateKey);
 
     const order = await Order.create({
       orderNumber,
@@ -57,7 +88,6 @@ router.post('/', async (req, res) => {
       total,
     });
 
-    // Đẩy realtime cho admin dashboard ngay lập tức — không cần F5.
     req.app.get('io').to('admin_room').emit('new_order', order);
 
     res.status(201).json({
@@ -71,66 +101,99 @@ router.post('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/orders/:id
- * PUBLIC (khách cần xem trạng thái đơn/thanh toán của chính mình qua orderId trả về lúc đặt)
- */
-router.get('/:id', async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
-  res.json(order);
-});
-
-/**
- * GET /api/orders/:id/vietqr
- * PUBLIC — khách chọn thanh toán VietQR, backend trả link ảnh QR động
- * (số tiền + nội dung CK = mã đơn, để đối soát khi tiền về).
- */
-router.get('/:id/vietqr', async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
-
-  const addInfo = `DH${order.orderNumber}${String(order._id).slice(-4)}`;
-  const qrUrl = buildVietQrUrl({ amount: order.total, addInfo });
-
-  // Lưu lại phương thức thanh toán + nội dung CK để webhook ngân hàng đối soát
-  order.payment.method = 'vietqr';
-  order.payment.addInfo = addInfo;
-  await order.save();
-  req.app.get('io').to('admin_room').emit('order_updated', order);
-
-  res.json({ qrUrl, addInfo, amount: order.total });
-});
-
-/**
- * PATCH /api/orders/:id/payment-method
- * PUBLIC — khách chọn "Tiền mặt" (không cần đăng nhập).
- */
-router.patch('/:id/payment-method', async (req, res) => {
-  const { method } = req.body; // 'cash' | 'vietqr'
-  const order = await Order.findByIdAndUpdate(
-    req.params.id,
-    { 'payment.method': method },
-    { new: true }
-  );
-  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
-  req.app.get('io').to('admin_room').emit('order_updated', order);
-  res.json(order);
-});
-
-/* ------------------------- CÁC ROUTE DÀNH CHO ADMIN ------------------------- */
+/* ------------------------- CÁC ROUTE DÀNH CHO ADMIN (đặt trước /:id) ------------------------- */
 
 /**
  * GET /api/orders?date=YYYY-MM-DD&status=pending
  * ADMIN — danh sách đơn hàng (mặc định lấy hôm nay).
  */
 router.get('/', requireAdmin, async (req, res) => {
-  const dateKey = req.query.date || new Date().toISOString().slice(0, 10);
+  const dateKey = req.query.date || getDateKey();
   const filter = { dateKey };
   if (req.query.status) filter.status = req.query.status;
 
   const orders = await Order.find(filter).sort({ orderNumber: -1 });
-  res.json(orders);
+  const currentOrderNumber = await getCurrentCounter(dateKey);
+
+  res.json({
+    dateKey,
+    dateLabel: formatDateLabel(dateKey),
+    currentOrderNumber,
+    orders,
+  });
+});
+
+/**
+ * GET /api/orders/revenue?period=day|week|month&date=YYYY-MM-DD
+ * ADMIN — tổng doanh thu đã thanh toán theo ngày/tuần/tháng.
+ */
+router.get('/revenue', requireAdmin, async (req, res) => {
+  const period = req.query.period || 'day';
+  const dateKey = req.query.date || getDateKey();
+
+  let match = { ...PAID_REVENUE_MATCH };
+  let periodLabel = '';
+
+  if (period === 'day') {
+    match.dateKey = dateKey;
+    periodLabel = formatDateLabel(dateKey);
+  } else if (period === 'week') {
+    const { startKey, endKey } = getWeekRange(dateKey);
+    match.dateKey = { $gte: startKey, $lte: endKey };
+    periodLabel = `${formatDateLabel(startKey)} – ${formatDateLabel(endKey)}`;
+  } else if (period === 'month') {
+    const { startKey, endKey } = getMonthRange(dateKey);
+    match.dateKey = { $gte: startKey, $lte: endKey };
+    const { year, month } = startKey.split('-').map(Number);
+    periodLabel = `Tháng ${month}/${year}`;
+  } else {
+    return res.status(400).json({ message: 'period phải là day, week hoặc month' });
+  }
+
+  const stats = await aggregateRevenue(match);
+
+  res.json({
+    period,
+    dateKey,
+    periodLabel,
+    ...stats,
+  });
+});
+
+/**
+ * POST /api/orders/reset-counter
+ * ADMIN — reset số thứ tự đơn hôm nay về 0 (đơn tiếp theo sẽ là #1).
+ */
+router.post('/reset-counter', requireAdmin, async (req, res) => {
+  const dateKey = req.body?.date || getDateKey();
+  await resetCounter(dateKey);
+
+  req.app.get('io').to('admin_room').emit('orders_reset', { dateKey, type: 'counter' });
+
+  res.json({
+    message: `Đã reset số thứ tự cho ngày ${formatDateLabel(dateKey)}`,
+    dateKey,
+    nextOrderNumber: 1,
+  });
+});
+
+/**
+ * DELETE /api/orders/today
+ * ADMIN — xóa tất cả đơn hàng của một ngày và reset số thứ tự.
+ */
+router.delete('/today', requireAdmin, async (req, res) => {
+  const dateKey = req.query.date || getDateKey();
+  const result = await Order.deleteMany({ dateKey });
+  await resetCounter(dateKey);
+
+  req.app.get('io').to('admin_room').emit('orders_reset', { dateKey, type: 'full' });
+
+  res.json({
+    message: `Đã xóa ${result.deletedCount} đơn và reset số thứ tự cho ngày ${formatDateLabel(dateKey)}`,
+    dateKey,
+    deletedCount: result.deletedCount,
+    nextOrderNumber: 1,
+  });
 });
 
 /**
@@ -148,14 +211,58 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
 /**
  * PATCH /api/orders/:id/confirm-payment
  * ADMIN — xác nhận ĐÃ THANH TOÁN.
- * - Với tiền mặt: admin bấm tay sau khi thu tiền tại quầy.
- * - Với VietQR: admin bấm sau khi thấy tiền về (bản MVP xác nhận thủ công;
- *   phần "tự động qua webhook ngân hàng" ghi ở mục nâng cấp trong README).
  */
 router.patch('/:id/confirm-payment', requireAdmin, async (req, res) => {
   const order = await Order.findByIdAndUpdate(
     req.params.id,
     { 'payment.status': 'paid', 'payment.paidAt': new Date() },
+    { new: true }
+  );
+  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+  req.app.get('io').to('admin_room').emit('order_updated', order);
+  res.json(order);
+});
+
+/* ------------------------- CÁC ROUTE PUBLIC (có :id) ------------------------- */
+
+/**
+ * GET /api/orders/:id
+ * PUBLIC (khách cần xem trạng thái đơn/thanh toán của chính mình qua orderId trả về lúc đặt)
+ */
+router.get('/:id', async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+  res.json(order);
+});
+
+/**
+ * GET /api/orders/:id/vietqr
+ * PUBLIC — khách chọn thanh toán VietQR, backend trả link ảnh QR động.
+ */
+router.get('/:id/vietqr', async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+
+  const addInfo = `DH${order.orderNumber}${String(order._id).slice(-4)}`;
+  const qrUrl = buildVietQrUrl({ amount: order.total, addInfo });
+
+  order.payment.method = 'vietqr';
+  order.payment.addInfo = addInfo;
+  await order.save();
+  req.app.get('io').to('admin_room').emit('order_updated', order);
+
+  res.json({ qrUrl, addInfo, amount: order.total });
+});
+
+/**
+ * PATCH /api/orders/:id/payment-method
+ * PUBLIC — khách chọn "Tiền mặt" (không cần đăng nhập).
+ */
+router.patch('/:id/payment-method', async (req, res) => {
+  const { method } = req.body;
+  const order = await Order.findByIdAndUpdate(
+    req.params.id,
+    { 'payment.method': method },
     { new: true }
   );
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });

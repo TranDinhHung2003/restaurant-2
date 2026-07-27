@@ -9,6 +9,7 @@ document.querySelectorAll('.sidebar__link').forEach((link) => {
     document.querySelectorAll('.panel').forEach((p) => p.classList.remove('is-active'));
     link.classList.add('is-active');
     document.getElementById('panel-' + link.dataset.panel).classList.add('is-active');
+    if (link.dataset.panel === 'revenue') loadRevenue();
   });
 });
 
@@ -128,7 +129,13 @@ document.getElementById('newOrderAckBtn').addEventListener('click', async () => 
 const socket = io(); // cùng origin với trang admin
 socket.on('connect', () => socket.emit('join_admin', getToken()));
 socket.on('new_order', (order) => {
+  if (order.dateKey !== currentDateKey) {
+    loadOrders();
+    return;
+  }
   orders.unshift(order);
+  currentOrderNumber = Math.max(currentOrderNumber, order.orderNumber);
+  renderOrderMeta();
   renderOrders(true);
 
   pendingNewOrders.push(order);
@@ -146,6 +153,12 @@ socket.on('order_updated', (updated) => {
   const idx = orders.findIndex((o) => o._id === updated._id);
   if (idx >= 0) orders[idx] = updated;
   renderOrders();
+  if (document.getElementById('panel-revenue').classList.contains('is-active')) {
+    loadRevenue();
+  }
+});
+socket.on('orders_reset', () => {
+  loadOrders();
 });
 
 /* =========================================================================
@@ -153,7 +166,11 @@ socket.on('order_updated', (updated) => {
    ========================================================================= */
 const orderGrid = document.getElementById('orderGrid');
 const statusFilter = document.getElementById('statusFilter');
+const ordersDateLabel = document.getElementById('ordersDateLabel');
+const orderCounterEl = document.getElementById('orderCounter');
 let orders = [];
+let currentDateKey = null;
+let currentOrderNumber = 0;
 let lastNewOrderId = null;
 
 const STATUS_LABEL = {
@@ -166,9 +183,29 @@ const STATUS_NEXT = { pending: 'preparing', preparing: 'served' }; // trạng th
 
 function formatVnd(n){ return n.toLocaleString('vi-VN') + 'đ'; }
 
+function todayDateInputValue() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function renderOrderMeta() {
+  ordersDateLabel.textContent = currentDateKey
+    ? `Ngày ${currentDateKey.split('-').reverse().join('/')}`
+    : '—';
+  orderCounterEl.textContent = `STT: ${currentOrderNumber || '—'}`;
+}
+
 async function loadOrders() {
-  orders = await apiFetch('/api/orders');
+  const data = await apiFetch('/api/orders');
+  currentDateKey = data.dateKey;
+  currentOrderNumber = data.currentOrderNumber;
+  orders = data.orders;
+  renderOrderMeta();
   renderOrders();
+
+  const dateInput = document.getElementById('revenueDate');
+  if (dateInput && !dateInput.value) dateInput.value = currentDateKey;
 }
 
 function renderOrders(justAdded = false) {
@@ -225,6 +262,72 @@ orderGrid.addEventListener('click', async (e) => {
 });
 
 statusFilter.addEventListener('change', () => renderOrders());
+
+document.getElementById('resetCounterBtn').addEventListener('click', async () => {
+  if (!confirm('Reset số thứ tự đơn hôm nay về #1? Các đơn hiện tại vẫn giữ nguyên.')) return;
+  try {
+    const res = await apiFetch('/api/orders/reset-counter', { method: 'POST', body: '{}' });
+    alert(res.message);
+    currentOrderNumber = 0;
+    renderOrderMeta();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById('resetTodayBtn').addEventListener('click', async () => {
+  if (!confirm('Xóa TẤT CẢ đơn hàng hôm nay và reset số thứ tự về #1? Thao tác không thể hoàn tác.')) return;
+  try {
+    const res = await apiFetch('/api/orders/today', { method: 'DELETE' });
+    alert(res.message);
+    orders = [];
+    currentOrderNumber = 0;
+    renderOrderMeta();
+    renderOrders();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// Tự động tải lại khi sang ngày mới (số thứ tự reset theo ngày)
+setInterval(async () => {
+  const data = await apiFetch('/api/orders');
+  if (data.dateKey !== currentDateKey) {
+    currentDateKey = data.dateKey;
+    currentOrderNumber = data.currentOrderNumber;
+    orders = data.orders;
+    renderOrderMeta();
+    renderOrders();
+  }
+}, 60000);
+
+/* =========================================================================
+   PANEL: DOANH THU
+   ========================================================================= */
+let revenuePeriod = 'day';
+
+async function loadRevenue() {
+  const dateInput = document.getElementById('revenueDate');
+  const date = dateInput.value || currentDateKey || todayDateInputValue();
+  const data = await apiFetch(`/api/orders/revenue?period=${revenuePeriod}&date=${date}`);
+
+  document.getElementById('revenuePeriodLabel').textContent = data.periodLabel;
+  document.getElementById('revenueTotal').textContent = formatVnd(data.totalRevenue);
+  document.getElementById('revenueOrderCount').textContent = data.orderCount;
+  document.getElementById('revenueCash').textContent = formatVnd(data.cashRevenue);
+  document.getElementById('revenueVietqr').textContent = formatVnd(data.vietqrRevenue);
+}
+
+document.getElementById('revenuePeriodTabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-period]');
+  if (!tab) return;
+  revenuePeriod = tab.dataset.period;
+  document.querySelectorAll('.period-tab').forEach((t) => t.classList.remove('is-active'));
+  tab.classList.add('is-active');
+  loadRevenue();
+});
+
+document.getElementById('revenueDate').addEventListener('change', () => loadRevenue());
 
 /* =========================================================================
    PANEL: THỰC ĐƠN

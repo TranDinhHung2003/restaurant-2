@@ -10,6 +10,7 @@
  *   đúng với thực tế nhà hàng (mỗi ca/mỗi ngày gọi số lại từ đầu).
  */
 const mongoose = require('mongoose');
+const { getDateKey } = require('../utils/dateKey');
 
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true }, // vd: "2026-07-27"
@@ -21,14 +22,28 @@ const Counter = mongoose.model('Counter', counterSchema);
 /**
  * Lấy số thứ tự tiếp theo cho ngày hôm nay (atomic, an toàn khi nhiều người đặt cùng lúc).
  */
-async function getNextOrderNumber() {
-  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+async function getNextOrderNumber(dateKey = getDateKey()) {
   const counter = await Counter.findOneAndUpdate(
-    { _id: today },
+    { _id: dateKey },
     { $inc: { seq: 1 } },
     { upsert: true, new: true }
   );
   return counter.seq;
 }
 
-module.exports = { Counter, getNextOrderNumber };
+/** Reset số thứ tự về 0 — đơn tiếp theo sẽ là #1. */
+async function resetCounter(dateKey = getDateKey()) {
+  await Counter.findOneAndUpdate(
+    { _id: dateKey },
+    { seq: 0 },
+    { upsert: true }
+  );
+}
+
+/** Lấy số thứ tự hiện tại (0 nếu chưa có đơn). */
+async function getCurrentCounter(dateKey = getDateKey()) {
+  const counter = await Counter.findById(dateKey);
+  return counter?.seq ?? 0;
+}
+
+module.exports = { Counter, getNextOrderNumber, resetCounter, getCurrentCounter };

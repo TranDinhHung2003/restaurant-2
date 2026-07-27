@@ -86,8 +86,21 @@ body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--i
 .panel.is-active{display:block;}
 .panel__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
 .panel__header h1{font-family:var(--font-display);font-size:22px;margin:0;color:var(--jade-700);}
-.panel__filters{display:flex;align-items:center;gap:12px;}
+.panel__subtitle{font-size:13px;color:var(--ink-soft);margin:4px 0 0;}
+.panel__hint{font-size:12.5px;color:var(--ink-soft);margin:-8px 0 16px;}
+.panel__filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .panel__filters select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;}
+.date-input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;font-family:inherit;}
+.order-counter{
+  font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--jade-700);
+  background:#E4F1EA;padding:6px 10px;border-radius:8px;
+}
+.period-tabs{display:flex;gap:4px;background:#F1EAD6;border-radius:999px;padding:3px;}
+.period-tab{
+  border:none;background:transparent;padding:7px 14px;border-radius:999px;
+  font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;
+}
+.period-tab.is-active{background:#fff;color:var(--jade-700);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
 
 .live-dot{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ok);}
 .live-dot i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;animation:pulse 1.6s infinite;}
@@ -121,6 +134,17 @@ body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--i
 
 .order-card__row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .order-card__actions{display:flex;flex-wrap:wrap;gap:6px;}
+
+/* ---------- REVENUE ---------- */
+.revenue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:16px;}
+.revenue-card{
+  background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:18px 16px;
+}
+.revenue-card--primary{border-color:var(--gold);background:linear-gradient(135deg,#FFFDF8 0%,#FBF3DC 100%);}
+.revenue-card__label{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
+.revenue-card__value{font-family:var(--font-mono);font-weight:700;font-size:22px;color:var(--lacquer);margin:0;}
+.revenue-card--primary .revenue-card__value{font-size:28px;color:var(--jade-700);}
 
 /* ---------- TABLE (menu) ---------- */
 .table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;}
