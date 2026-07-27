@@ -269,7 +269,14 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body;
   const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
-  req.app.get('io').to('admin_room').emit('order_updated', order);
+
+  const io = req.app.get('io');
+  io.to('admin_room').emit('order_updated', order);
+  // Khách đang mở trang (đã join order_<id>) nhận trạng thái bếp realtime.
+  io.to(`order_${order._id}`).emit('order_updated', order);
+  if (status === 'preparing') {
+    io.to(`order_${order._id}`).emit('order_confirmed', order);
+  }
   res.json(order);
 });
 

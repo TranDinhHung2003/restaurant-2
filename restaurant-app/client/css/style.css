@@ -154,6 +154,29 @@ textarea,input{font-family:inherit;}
 .history-card__row strong{font-family:var(--font-mono);color:var(--lacquer);font-size:14px;}
 .history-card__actions{margin-top:10px;}
 
+/* ---------- STATUS TOAST (bếp xác nhận đơn) ---------- */
+.status-toast[hidden]{display:none;}
+.status-toast{
+  position:fixed;inset:0;z-index:90;
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(18,42,34,0.62);backdrop-filter:blur(2px);
+}
+.status-toast__panel{
+  width:100%;max-width:360px;background:var(--paper-card);
+  border-radius:18px;padding:28px 22px 20px;text-align:center;
+  border:2px solid var(--gold);
+  box-shadow:0 20px 50px rgba(0,0,0,0.28);
+  animation:status-pop .35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes status-pop{
+  from{transform:scale(.88);opacity:0;}
+  to{transform:scale(1);opacity:1;}
+}
+.status-toast__icon{font-size:40px;margin:0 0 8px;}
+.status-toast__title{font-family:var(--font-display);font-size:20px;color:var(--jade-700);margin:0 0 6px;}
+.status-toast__number{font-family:var(--font-mono);font-weight:700;font-size:42px;color:var(--lacquer);margin:0 0 10px;line-height:1;}
+.status-toast__body{font-size:14px;color:var(--ink-soft);margin:0 0 18px;line-height:1.5;}
+
 @media (min-width:480px){
   .topbar__history span{display:inline;}
 }

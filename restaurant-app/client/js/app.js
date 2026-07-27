@@ -435,6 +435,7 @@ async function submitOrder(){
       status: data.status || 'pending',
       createdAt: data.createdAt || new Date().toISOString(),
     });
+    watchOrderRealtime(data.orderId);
 
     cart.clear();
     renderMenu();
@@ -589,6 +590,80 @@ document.getElementById('historyList').addEventListener('click', (e) => {
   document.getElementById('ticketNumber').textContent = local.orderNumber;
   document.getElementById('ticketTable').textContent = 'Bàn ' + (local.table || TABLE_ID);
   document.getElementById('ticketSheet').hidden = false;
+});
+
+// ---------------------------------------------------------------------------
+// 9c. REALTIME — khi admin xác nhận đơn (chuyển sang "đang chế biến")
+// ---------------------------------------------------------------------------
+let customerSocket = null;
+const joinedOrderIds = new Set();
+const shownConfirmIds = new Set(); // tránh hiện toast trùng
+
+function ensureCustomerSocket() {
+  if (typeof io !== 'function') return null;
+  if (customerSocket) return customerSocket;
+
+  customerSocket = io();
+  customerSocket.on('connect', () => {
+    joinedOrderIds.forEach((id) => customerSocket.emit('join_order', id));
+  });
+
+  customerSocket.on('order_confirmed', (order) => {
+    showOrderConfirmedToast(order);
+    syncHistoryStatus(order);
+  });
+
+  customerSocket.on('order_updated', (order) => {
+    if (order?.status === 'preparing') showOrderConfirmedToast(order);
+    syncHistoryStatus(order);
+  });
+
+  return customerSocket;
+}
+
+function watchOrderRealtime(orderId) {
+  if (!orderId) return;
+  const id = String(orderId);
+  joinedOrderIds.add(id);
+  const socket = ensureCustomerSocket();
+  if (socket?.connected) socket.emit('join_order', id);
+  else ensureCustomerSocket();
+}
+
+function syncHistoryStatus(order) {
+  if (!order?._id) return;
+  const list = readLocalHistory();
+  let changed = false;
+  const next = list.map((o) => {
+    if (String(o.orderId || o._id) !== String(order._id)) return o;
+    changed = true;
+    return {
+      ...o,
+      status: order.status,
+      payment: order.payment || o.payment,
+      items: order.items || o.items,
+      total: order.total ?? o.total,
+    };
+  });
+  if (changed) writeLocalHistory(next);
+}
+
+function showOrderConfirmedToast(order) {
+  if (!order?._id) return;
+  const id = String(order._id);
+  if (order.status && order.status !== 'preparing') return;
+  if (shownConfirmIds.has(id)) return;
+  shownConfirmIds.add(id);
+
+  document.getElementById('orderStatusTitle').textContent = 'Đơn hàng đã được xác nhận';
+  document.getElementById('orderStatusNumber').textContent = '#' + order.orderNumber;
+  document.getElementById('orderStatusBody').textContent =
+    'Đơn hàng đã được xác nhận và đang chuẩn bị. Vui lòng theo dõi màn hình gọi số.';
+  document.getElementById('orderStatusToast').hidden = false;
+}
+
+document.getElementById('orderStatusOkBtn').addEventListener('click', () => {
+  document.getElementById('orderStatusToast').hidden = true;
 });
 
 // ---------------------------------------------------------------------------
@@ -754,4 +829,9 @@ function watchPaymentStatus(orderId) {
     console.error(err);
   }
   renderCartBar();
+
+  // Theo dõi realtime các đơn chưa xong trên máy này (để nhận thông báo khi bếp xác nhận).
+  readLocalHistory()
+    .filter((o) => o.orderId && o.status !== 'served' && o.status !== 'cancelled')
+    .forEach((o) => watchOrderRealtime(o.orderId));
 })();
