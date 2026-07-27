@@ -309,29 +309,4 @@ router.patch('/:id/payment-method', async (req, res) => {
   res.json(order);
 });
 
-/**
- * POST /api/orders/:id/report-paid
- * PUBLIC — khách báo đã chuyển khoản VietQR.
- * Hệ thống TỰ ĐỘNG xác nhận thanh toán cho admin (không cần admin bấm tay).
- * Webhook ngân hàng (nếu cấu hình) cũng tự xác nhận tương tự.
- */
-router.post('/:id/report-paid', async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
-  if (order.payment.status === 'paid') {
-    return res.json(order);
-  }
-  if (order.payment.method !== 'vietqr') {
-    return res.status(400).json({ message: 'Chỉ áp dụng cho đơn thanh toán VietQR' });
-  }
-
-  order.payment.status = 'paid';
-  order.payment.paidAt = new Date();
-  await order.save();
-
-  req.app.get('io').to('admin_room').emit('order_updated', order);
-  req.app.get('io').to('admin_room').emit('payment_confirmed', order);
-  res.json(order);
-});
-
 module.exports = router;

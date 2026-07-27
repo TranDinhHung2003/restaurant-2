@@ -93,23 +93,24 @@ ai bấm trước. Số reset về 1 mỗi ngày mới (xem `server/src/models/C
 
 ## 6. Tự động xác nhận thanh toán VietQR (webhook ngân hàng)
 
-Backend có sẵn endpoint `POST /api/payments/webhook` để nhận **biến động số dư**
-từ các dịch vụ trung gian như **Casso, SePay, PayOS**:
+Khi khách **chuyển khoản thành công**, hệ thống tự đánh dấu đơn đã thanh toán —
+**không cần khách hay admin bấm xác nhận**. Cơ chế dựa trên webhook biến động số dư
+từ **Casso / SePay / PayOS**:
 
-1. Đặt `WEBHOOK_SECRET` trong `.env` thành một chuỗi ngẫu nhiên dài.
+1. Đặt `WEBHOOK_SECRET` trong `.env` thành một chuỗi ngẫu nhiên dài (bắt buộc để bật tự động).
 2. Trên trang cấu hình của Casso/SePay, trỏ webhook về:
    `https://tennhahang.com/api/payments/webhook`
-   và cấu hình gửi kèm secret theo 1 trong 3 cách:
+   và gửi kèm secret theo 1 trong 3 cách:
    - Header `Authorization: Apikey <WEBHOOK_SECRET>` (chuẩn Casso), hoặc
    - Header `x-webhook-secret: <WEBHOOK_SECRET>`, hoặc
    - Query `?secret=<WEBHOOK_SECRET>`.
-3. Khi tiền về, hệ thống dò **nội dung chuyển khoản** (vd `DH12abcd` — đã lưu vào
-   đơn lúc khách bấm thanh toán VietQR) và **số tiền** phải ≥ tổng đơn, khớp thì tự
-   chuyển `payment_status` → `paid`, đẩy realtime cho admin lẫn màn hình khách đang
-   chờ. Chuyển thiếu tiền hoặc sai nội dung thì KHÔNG tự xác nhận — admin xử lý tay.
+3. Khi tiền về, hệ thống dò **nội dung chuyển khoản** (vd `DH12abcd` — đã gắn vào
+   mã VietQR) và **số tiền** ≥ tổng đơn → `payment_status` = `paid`, đẩy realtime
+   cho admin board và màn hình khách đang chờ QR. Sai nội dung / thiếu tiền → không tự xác nhận.
 
-Chưa cấu hình webhook thì mọi thứ vẫn chạy bình thường: admin bấm tay
-**Xác nhận đã thanh toán** như cũ.
+**Tiền mặt** vẫn do admin xác nhận tay tại quầy.
+
+Chưa cấu hình webhook → VietQR sẽ ở trạng thái "Chờ ngân hàng" cho đến khi cấu hình xong.
 
 ## 7. Thông báo đơn hàng mới (popup + chuông reo)
 

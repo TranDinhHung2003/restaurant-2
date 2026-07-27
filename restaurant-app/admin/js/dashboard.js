@@ -215,9 +215,9 @@ socket.on('revenue_reset', () => {
 
 function showPaymentToast(order) {
   const toast = document.getElementById('paymentToast');
-  document.getElementById('paymentToastTitle').textContent = 'Thanh toán tự động';
+  document.getElementById('paymentToastTitle').textContent = 'Ngân hàng đã nhận tiền';
   document.getElementById('paymentToastBody').textContent =
-    `Đơn #${order.orderNumber} · Bàn ${order.table} · ${formatVnd(order.total)}`;
+    `Đơn #${order.orderNumber} · Bàn ${order.table} · ${formatVnd(order.total)} — tự xác nhận`;
   toast.hidden = false;
   clearTimeout(showPaymentToast._timer);
   showPaymentToast._timer = setTimeout(() => { toast.hidden = true; }, 4500);
@@ -295,14 +295,13 @@ function renderOrders(justAdded = false) {
         <span class="order-card__total">${formatVnd(o.total)}</span>
         <span class="badge badge--${o.payment.status}">
           ${o.payment.status === 'paid'
-            ? (o.payment.method === 'vietqr' ? 'Đã CK (tự động)' : 'Đã thanh toán')
-            : (o.payment.method === 'vietqr' ? 'Chờ chuyển khoản' : 'Chưa thanh toán')}
+            ? (o.payment.method === 'vietqr' ? 'Đã CK (ngân hàng)' : 'Đã thanh toán')
+            : (o.payment.method === 'vietqr' ? 'Chờ ngân hàng' : 'Chưa thanh toán')}
         </span>
       </div>
       <div class="order-card__actions">
         ${STATUS_NEXT[o.status] ? `<button class="btn btn--small btn--primary" data-action="status" data-id="${o._id}" data-next="${STATUS_NEXT[o.status]}">Chuyển: ${STATUS_LABEL[STATUS_NEXT[o.status]]}</button>` : ''}
         ${o.payment.status !== 'paid' && o.payment.method !== 'vietqr' ? `<button class="btn btn--small btn--danger-outline" data-action="pay" data-id="${o._id}">Xác nhận đã thanh toán</button>` : ''}
-        ${o.payment.status !== 'paid' && o.payment.method === 'vietqr' ? `<button class="btn btn--small btn--ghost" data-action="pay" data-id="${o._id}" title="Fallback nếu khách chưa bấm xác nhận">Xác nhận tay (fallback)</button>` : ''}
         ${o.status !== 'cancelled' && o.status !== 'served' ? `<button class="btn btn--small btn--ghost" data-action="cancel" data-id="${o._id}">Huỷ đơn</button>` : ''}
       </div>
     </article>

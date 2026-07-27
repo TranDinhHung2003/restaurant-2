@@ -1,14 +1,14 @@
 /**
- * paymentWebhook.js — TỰ ĐỘNG xác nhận thanh toán VietQR qua webhook
- * biến động số dư ngân hàng (Casso, SePay, PayOS... đều bắn về dạng tương tự).
+ * paymentWebhook.js — TỰ ĐỘNG xác nhận thanh toán VietQR khi ngân hàng
+ * báo tiền về thành công (Casso, SePay, PayOS...).
  *
- * Cách hoạt động:
- * 1. Khách chọn VietQR -> backend sinh nội dung CK duy nhất (vd "DH12abcd")
- *    và lưu vào order.payment.addInfo.
- * 2. Khách chuyển khoản -> dịch vụ webhook (Casso/SePay...) phát hiện tiền về
- *    và gọi POST /api/payments/webhook kèm nội dung + số tiền giao dịch.
- * 3. Backend dò chuỗi addInfo trong nội dung CK, khớp số tiền -> chuyển
- *    payment_status: unpaid -> paid, đẩy realtime cho admin + khách đang chờ.
+ * Luồng đúng (không cần khách hay admin bấm xác nhận):
+ * 1. Khách chọn VietQR → backend sinh nội dung CK duy nhất (vd "DH12abcd")
+ *    gắn vào mã QR và lưu vào order.payment.addInfo.
+ * 2. Khách chuyển khoản THÀNH CÔNG → dịch vụ webhook phát hiện biến động số dư
+ *    và gọi POST /api/payments/webhook kèm nội dung + số tiền.
+ * 3. Backend khớp addInfo + số tiền ≥ tổng đơn → payment.status = paid,
+ *    đẩy realtime cho admin board và màn hình khách đang chờ.
  *
  * Bảo mật: webhook phải gửi kèm secret (đặt trong .env WEBHOOK_SECRET) qua
  * một trong các cách:
@@ -23,13 +23,20 @@ const router = express.Router();
 
 function isAuthorized(req) {
   const secret = process.env.WEBHOOK_SECRET;
-  if (!secret) return false; // chưa cấu hình thì từ chối tất cả cho an toàn
+  if (!secret) return false;
 
   const auth = req.headers.authorization || '';
   if (auth === `Apikey ${secret}` || auth === `Bearer ${secret}`) return true;
   if (req.headers['x-webhook-secret'] === secret) return true;
   if (req.query.secret === secret) return true;
   return false;
+}
+
+/** Chuẩn hoá nội dung CK: bỏ khoảng trắng, viết hoa — ngân hàng hay thêm space/ký tự. */
+function normalizeTransferContent(str) {
+  return String(str || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
 }
 
 /**
@@ -47,15 +54,22 @@ function extractTransactions(body) {
     .map((tx) => ({
       content: String(tx.content || tx.description || tx.transaction_content || tx.addInfo || ''),
       amount: Number(tx.amount ?? tx.transferAmount ?? tx.amount_in ?? tx.creditAmount ?? 0),
-      // SePay có transferType 'in'/'out' — chỉ quan tâm tiền VÀO
       isMoneyIn: tx.transferType ? tx.transferType === 'in' : true,
     }))
     .filter((tx) => tx.content && tx.amount > 0 && tx.isMoneyIn);
 }
 
+function emitPaymentConfirmed(req, order) {
+  const io = req.app.get('io');
+  io.to('admin_room').emit('order_updated', order);
+  io.to('admin_room').emit('payment_confirmed', order);
+  // Khách đang mở màn QR (đã join phòng order_<id>) nhận ngay, không cần poll.
+  io.to(`order_${order._id}`).emit('payment_confirmed', order);
+}
+
 /**
  * POST /api/payments/webhook
- * Nhận biến động số dư -> tự động đánh dấu đơn đã thanh toán.
+ * Nhận biến động số dư từ ngân hàng → tự động đánh dấu đơn đã thanh toán.
  */
 router.post('/webhook', async (req, res) => {
   if (!isAuthorized(req)) {
@@ -66,32 +80,39 @@ router.post('/webhook', async (req, res) => {
   const confirmed = [];
 
   for (const tx of transactions) {
-    // Tìm các đơn VietQR CHƯA thanh toán mà nội dung CK chứa mã addInfo của đơn.
-    // Ngân hàng thường viết hoa/bỏ dấu nội dung CK nên so sánh không phân biệt hoa thường.
+    const txNorm = normalizeTransferContent(tx.content);
+
     const candidates = await Order.find({
       'payment.status': 'unpaid',
+      'payment.method': 'vietqr',
       'payment.addInfo': { $ne: '' },
     });
 
-    const order = candidates.find(
-      (o) =>
-        tx.content.toUpperCase().includes(o.payment.addInfo.toUpperCase()) &&
-        tx.amount >= o.total // chuyển thiếu tiền thì không tự xác nhận, để admin xử lý tay
-    );
+    const order = candidates.find((o) => {
+      const code = normalizeTransferContent(o.payment.addInfo);
+      if (!code) return false;
+      // Nội dung CK ngân hàng phải chứa mã đơn (vd DH12ABCD)
+      const matchedCode = txNorm.includes(code);
+      // Số tiền chuyển ≥ tổng đơn (chuyển thừa vẫn OK; thiếu thì không tự xác nhận)
+      const matchedAmount = tx.amount >= o.total;
+      return matchedCode && matchedAmount;
+    });
+
     if (!order) continue;
 
     order.payment.status = 'paid';
     order.payment.paidAt = new Date();
     await order.save();
-    confirmed.push({ orderId: order._id, orderNumber: order.orderNumber });
+    confirmed.push({
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      amount: tx.amount,
+    });
 
-    // Tự động xác nhận cho admin — không cần bấm tay "Xác nhận đã thanh toán".
-    req.app.get('io').to('admin_room').emit('order_updated', order);
-    req.app.get('io').to('admin_room').emit('payment_confirmed', order);
+    emitPaymentConfirmed(req, order);
   }
 
-  // Luôn trả 200 để dịch vụ webhook không retry vô hạn với giao dịch không khớp
-  // (vd tiền về không liên quan đơn nào).
+  // Luôn 200 để dịch vụ webhook không retry vô hạn với giao dịch không khớp đơn.
   res.json({ success: true, confirmedCount: confirmed.length, confirmed });
 });
 

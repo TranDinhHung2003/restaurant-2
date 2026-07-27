@@ -35,14 +35,21 @@ app.use('/api/payments', paymentWebhookRoutes); // webhook ngân hàng tự xác
 app.use('/', express.static(path.join(__dirname, '../../client')));
 app.use('/admin', express.static(path.join(__dirname, '../../admin')));
 
-// ---- Realtime: admin dashboard join phòng riêng để nhận đơn hàng mới ----
+// ---- Realtime: admin join phòng riêng; khách join phòng theo orderId để nhận thanh toán ----
 io.on('connection', (socket) => {
   socket.on('join_admin', (token) => {
     try {
-      jwt.verify(token, process.env.JWT_SECRET); // chỉ admin có token hợp lệ mới join được
+      jwt.verify(token, process.env.JWT_SECRET);
       socket.join('admin_room');
     } catch {
-      // token sai thì bỏ qua, không join phòng admin
+      // token sai thì bỏ qua
+    }
+  });
+
+  // Khách đang chờ VietQR join phòng đơn của mình để nhận payment_confirmed ngay khi tiền về.
+  socket.on('join_order', (orderId) => {
+    if (orderId && typeof orderId === 'string' && /^[a-f0-9]{24}$/i.test(orderId)) {
+      socket.join(`order_${orderId}`);
     }
   });
 });

@@ -695,7 +695,10 @@ textarea,input{font-family:inherit;}
 .qr-box__desc{font-size:12px;color:var(--ink-soft);margin:4px 0 0;}
 .qr-box__status{
   font-size:12.5px;text-align:center;color:var(--jade-700);
-  background:#EAF2EE;border-radius:var(--radius-sm);padding:10px;margin:0 0 16px;
+  background:#EAF2EE;border-radius:var(--radius-sm);padding:10px;margin:0 0 8px;
+}
+.qr-box__hint{
+  font-size:12px;text-align:center;color:var(--ink-soft);margin:0 0 16px;line-height:1.45;
 }
 
 /* ==========================================================================

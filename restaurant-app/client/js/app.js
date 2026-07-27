@@ -467,65 +467,70 @@ async function openVietQr(order){
   statusEl.textContent = 'Đang tạo mã QR…';
 
   try {
-    // Backend tự lấy thông tin tài khoản ngân hàng từ cấu hình (.env), sinh
-    // sẵn link ảnh VietQR với đúng số tiền + nội dung CK = mã đơn hàng.
     const res = await fetch(`${API_BASE}/api/orders/${order.orderId}/vietqr`);
     const { qrUrl, addInfo, amount } = await res.json();
 
     document.getElementById('qrImage').src = qrUrl;
     document.getElementById('qrAmount').textContent = formatVnd(amount);
     document.getElementById('qrDesc').textContent = 'Nội dung chuyển khoản: ' + addInfo;
-    statusEl.textContent = 'Quét mã / chuyển khoản đúng số tiền và nội dung, rồi bấm "Tôi đã chuyển khoản".';
-    document.getElementById('reportPaidBtn').hidden = false;
-    document.getElementById('reportPaidBtn').disabled = false;
+    statusEl.textContent = 'Đang chờ ngân hàng xác nhận tiền về…';
 
-    pollPaymentStatus(order.orderId);
+    // Chỉ xác nhận khi giao dịch ngân hàng thành công (webhook) — không cần khách/admin bấm.
+    watchPaymentStatus(order.orderId);
   } catch {
     statusEl.textContent = 'Không tạo được mã QR, vui lòng thanh toán tiền mặt tại quầy.';
   }
 }
 
-document.getElementById('reportPaidBtn').addEventListener('click', async () => {
-  if (!currentOrder?.orderId) return;
-  const btn = document.getElementById('reportPaidBtn');
+function markPaymentSuccess() {
   const statusEl = document.getElementById('qrStatus');
-  btn.disabled = true;
-  btn.textContent = 'Đang xác nhận…';
-  try {
-    const res = await fetch(`${API_BASE}/api/orders/${currentOrder.orderId}/report-paid`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Không xác nhận được thanh toán');
-    }
-    statusEl.textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
-    btn.hidden = true;
-  } catch (err) {
-    statusEl.textContent = err.message || 'Có lỗi, vui lòng thử lại hoặc báo nhân viên.';
-    btn.disabled = false;
-    btn.textContent = '✓ Tôi đã chuyển khoản';
-  }
-});
+  statusEl.textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
+  const hint = document.getElementById('qrHint');
+  if (hint) hint.hidden = true;
+}
 
-// Kiểm tra định kỳ xem thanh toán đã được xác nhận chưa (khách báo đã CK,
-// webhook ngân hàng, hoặc admin xác nhận tay) — mỗi 4 giây, tối đa 2 phút.
-function pollPaymentStatus(orderId){
+/**
+ * Theo dõi thanh toán: ưu tiên Socket.IO (ngân hàng webhook → realtime),
+ * kèm poll dự phòng mỗi 3 giây tối đa ~5 phút.
+ */
+function watchPaymentStatus(orderId) {
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    markPaymentSuccess();
+    clearInterval(pollTimer);
+    if (socket) {
+      socket.off('payment_confirmed', onPaid);
+      socket.disconnect();
+    }
+  };
+
+  const onPaid = (order) => {
+    if (order && String(order._id) === String(orderId) && order.payment?.status === 'paid') {
+      finish();
+    }
+  };
+
+  let socket = null;
+  try {
+    if (typeof io === 'function') {
+      socket = io();
+      socket.on('connect', () => socket.emit('join_order', orderId));
+      socket.on('payment_confirmed', onPaid);
+    }
+  } catch { /* fallback poll bên dưới */ }
+
   let attempts = 0;
-  const timer = setInterval(async () => {
+  const pollTimer = setInterval(async () => {
     attempts++;
     try {
       const res = await fetch(`${API_BASE}/api/orders/${orderId}`);
       const order = await res.json();
-      if (order.payment.status === 'paid') {
-        document.getElementById('qrStatus').textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
-        document.getElementById('reportPaidBtn').hidden = true;
-        clearInterval(timer);
-      }
-    } catch { /* bỏ qua lỗi tạm thời, thử lại lần sau */ }
-    if (attempts >= 30) clearInterval(timer);
-  }, 4000);
+      if (order.payment?.status === 'paid') finish();
+    } catch { /* bỏ qua lỗi tạm thời */ }
+    if (attempts >= 100) clearInterval(pollTimer); // ~5 phút
+  }, 3000);
 }
 
 // ---------------------------------------------------------------------------
