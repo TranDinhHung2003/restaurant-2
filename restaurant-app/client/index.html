@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Quán Nhà — Gọi món</title>
+<title>Quán Nhà — Gọi món tại bàn</title>
+<meta name="description" content="Quán Nhà — cơm nhà món Việt. Quét QR tại bàn, xem thực đơn và gọi món ngay trên điện thoại.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -26,11 +27,50 @@
     </div>
   </header>
 
+  <!-- ===== HERO: giới thiệu quán ===== -->
+  <section class="hero">
+    <p class="hero__eyebrow">— Est. 2020 —</p>
+    <h1 class="hero__title">Bữa cơm nhà,<br>giữa lòng phố</h1>
+    <p class="hero__desc">
+      Gạo dẻo nấu nồi gang, đồ ăn đi chợ mỗi sớm, nêm nếm đúng vị cơm mẹ nấu.
+      Chọn món bên dưới, bếp nhận đơn ngay lập tức — không cần gọi nhân viên.
+    </p>
+    <div class="hero__chips">
+      <span class="chip">🕘 Mở cửa 06:00 – 21:00</span>
+      <span class="chip">🍚 Nấu mới mỗi ngày</span>
+      <span class="chip">⚡ Đặt là bếp nhận liền</span>
+      <span class="chip">🏦 Tiền mặt / VietQR</span>
+    </div>
+    <div class="hero__steps">
+      <div class="hero__step"><span>1</span>Chọn món</div>
+      <div class="hero__step"><span>2</span>Đặt cơm</div>
+      <div class="hero__step"><span>3</span>Nhận số thứ tự</div>
+      <div class="hero__step"><span>4</span>Thanh toán</div>
+    </div>
+  </section>
+
+  <!-- ===== TÌM KIẾM ===== -->
+  <div class="searchbar">
+    <span class="searchbar__icon">🔍</span>
+    <input type="search" id="searchInput" placeholder="Tìm món ăn, vd: cơm sườn, canh chua…" autocomplete="off">
+  </div>
+
   <!-- ===== TABS DANH MỤC ===== -->
   <nav class="tabs" id="categoryTabs" aria-label="Danh mục món ăn"></nav>
 
   <!-- ===== DANH SÁCH MÓN ĂN ===== -->
   <main class="menu" id="menuList"></main>
+
+  <!-- ===== FOOTER: thông tin quán ===== -->
+  <footer class="footer">
+    <p class="footer__brand">Quán Nhà</p>
+    <p class="footer__line">Cơm nhà · món Việt truyền thống</p>
+    <div class="footer__grid">
+      <div class="footer__cell"><span>Giờ mở cửa</span>06:00 – 21:00<br>(cả tuần, kể cả lễ)</div>
+      <div class="footer__cell"><span>Bếp phục vụ</span>Sáng 06:00 – 10:00<br>Trưa &amp; tối 10:00 – 21:00</div>
+    </div>
+    <p class="footer__hint">Cần hỗ trợ? Vẫy tay gọi nhân viên bất cứ lúc nào — chúng tôi luôn ở gần bạn.</p>
+  </footer>
 
   <!-- ===== THANH GIỎ HÀNG NỔI ===== -->
   <button class="cart-bar" id="cartBar" type="button" hidden>
@@ -39,7 +79,31 @@
     <span class="cart-bar__total" id="cartTotal">0đ</span>
   </button>
 
-  <!-- ===== MODAL GIỎ HÀNG ===== -->
+  <!-- ===== SHEET CHI TIẾT MÓN ĂN ===== -->
+  <div class="sheet" id="dishSheet" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel sheet__panel--dish">
+      <div class="dish-detail__media" id="dishDetailMedia"></div>
+      <div class="dish-detail__body">
+        <div class="dish-detail__head">
+          <h2 class="dish-detail__name" id="dishDetailName">—</h2>
+          <span class="dish-detail__price" id="dishDetailPrice">0đ</span>
+        </div>
+        <div class="dish-detail__meta" id="dishDetailMeta"></div>
+        <p class="dish-detail__desc" id="dishDetailDesc"></p>
+        <div class="dish-detail__actions" id="dishDetailActions">
+          <div class="stepper stepper--lg">
+            <button class="stepper__btn" id="dishQtyDec">−</button>
+            <span class="stepper__qty" id="dishQty">1</span>
+            <button class="stepper__btn" id="dishQtyInc">+</button>
+          </div>
+          <button class="btn btn--primary dish-detail__add" id="dishAddBtn">Thêm vào giỏ · 0đ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SHEET GIỎ HÀNG ===== -->
   <div class="sheet" id="cartSheet" hidden>
     <div class="sheet__backdrop" data-close></div>
     <div class="sheet__panel">
@@ -50,12 +114,12 @@
         <span>Tạm tính</span>
         <strong id="sheetTotal">0đ</strong>
       </div>
-      <textarea class="sheet__note" id="orderNote" placeholder="Ghi chú cho bếp (không cay, ít hành...)" rows="2"></textarea>
+      <textarea class="sheet__note" id="orderNote" placeholder="Ghi chú cho bếp (không cay, ít hành, thêm cơm...)" rows="2"></textarea>
       <button class="btn btn--primary btn--block" id="placeOrderBtn">Đặt cơm</button>
     </div>
   </div>
 
-  <!-- ===== MODAL VÉ SỐ THỨ TỰ (sau khi đặt) ===== -->
+  <!-- ===== SHEET VÉ SỐ THỨ TỰ (sau khi đặt) ===== -->
   <div class="sheet" id="ticketSheet" hidden>
     <div class="sheet__backdrop"></div>
     <div class="sheet__panel sheet__panel--ticket">
@@ -75,7 +139,7 @@
     </div>
   </div>
 
-  <!-- ===== MODAL VIETQR ===== -->
+  <!-- ===== SHEET VIETQR ===== -->
   <div class="sheet" id="qrSheet" hidden>
     <div class="sheet__backdrop" data-close></div>
     <div class="sheet__panel">

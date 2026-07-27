@@ -1,9 +1,10 @@
 /* ==========================================================================
-   app.js — Giao diện khách hàng
-   Hiện tại dùng DỮ LIỆU MẪU (MOCK) để bạn xem giao diện chạy được ngay.
-   Mọi chỗ cần nối vào backend thật đều được đánh dấu bằng "TODO API:".
-   Khi backend (Express + MongoDB) sẵn sàng, chỉ cần thay các hàm fetchMenu(),
-   submitOrder(), createVietQr() bằng lời gọi fetch() tới API thật.
+   app.js — Giao diện khách hàng (trang gọi món khi quét QR tại bàn)
+
+   Luồng dữ liệu:
+   - GET  /api/menu                -> thực đơn (backend đã lọc theo khung giờ)
+   - POST /api/orders              -> đặt món, nhận số thứ tự
+   - GET  /api/orders/:id/vietqr   -> mã VietQR động để chuyển khoản
    ========================================================================== */
 
 // ---------------------------------------------------------------------------
@@ -15,14 +16,35 @@ const TABLE_ID = params.get('table') || '01';
 document.getElementById('tableNumber').textContent = TABLE_ID;
 
 // ---------------------------------------------------------------------------
-// 2. CẤU HÌNH & LẤY DỮ LIỆU MÓN ĂN TỪ BACKEND THẬT (GET /api/menu)
+// 2. CẤU HÌNH & LẤY DỮ LIỆU MÓN ĂN TỪ BACKEND (GET /api/menu)
 // Nếu client và server chạy cùng domain (phục vụ qua Express static như
 // hướng dẫn trong README), để trống ''. Nếu tách deploy riêng, đổi thành
 // URL đầy đủ, vd: 'https://api.quanha.vn'
 // ---------------------------------------------------------------------------
 const API_BASE = '';
 
-let MENU = []; // sẽ được nạp từ API lúc khởi tạo, dạng [{ category, items:[...] }]
+let MENU = []; // [{ category, items:[...] }] — nạp từ API lúc khởi tạo
+
+// Emoji đại diện khi món chưa có ảnh thật — để thẻ món không bị ô trống xám
+const CATEGORY_EMOJI = {
+  'Món chính': '🍛',
+  'Khai vị': '🥗',
+  'Canh': '🍲',
+  'Đồ uống': '🥤',
+};
+const DEFAULT_EMOJI = '🍽️';
+
+// Câu mô tả ngắn dưới tiêu đề mỗi danh mục — chi tiết nhỏ làm menu "có hồn" hơn
+const CATEGORY_TAGLINE = {
+  'Món chính': 'Cơm nóng xới tay, đầy đặn — no bụng đúng kiểu cơm nhà.',
+  'Khai vị': 'Nhẹ bụng khai màn, ăn kèm rau sống hái trong ngày.',
+  'Canh': 'Nồi canh nấu liu riu, chan cơm là tròn bữa.',
+  'Đồ uống': 'Giải nhiệt mát lành, pha khi khách gọi.',
+};
+
+function emojiFor(category) {
+  return CATEGORY_EMOJI[category] || DEFAULT_EMOJI;
+}
 
 async function fetchMenu(){
   const res = await fetch(`${API_BASE}/api/menu`);
@@ -31,16 +53,22 @@ async function fetchMenu(){
   // Backend đã LỌC SẴN theo khung giờ phục vụ (availableHours) — món ngoài giờ
   // không được trả về, nên khách chỉ thấy các món đang bán ở thời điểm hiện tại.
 
+  const NEW_WITHIN_DAYS = 7; // món thêm trong 7 ngày gần đây được gắn nhãn "Mới"
+  const now = Date.now();
+
   // Nhóm theo category để hiển thị theo tab, giữ đúng field cần cho renderMenu()
   const grouped = {};
   flatItems.forEach((raw) => {
     const item = {
       id: raw._id,
       name: raw.name,
+      category: raw.category,
       price: raw.price,
       desc: raw.description || '',
+      image: raw.image || '',
       available: raw.availableNow ?? raw.available,
-      hours: raw.availableHours || '', // vd "10:30-14:00" — hiện cho khách biết khung giờ bán
+      hours: raw.availableHours || '', // vd "10:30-14:00" — khung giờ bán
+      isNew: raw.createdAt && (now - new Date(raw.createdAt).getTime()) < NEW_WITHIN_DAYS * 86400000,
     };
     if (!grouped[raw.category]) grouped[raw.category] = [];
     grouped[raw.category].push(item);
@@ -49,24 +77,49 @@ async function fetchMenu(){
 }
 
 // ---------------------------------------------------------------------------
-// 3. STATE GIỎ HÀNG
+// 3. STATE GIỎ HÀNG + TÌM KIẾM
 // ---------------------------------------------------------------------------
 const cart = new Map(); // itemId -> { item, qty }
+let searchQuery = '';
+
+/** Bỏ dấu tiếng Việt để tìm "com suon" vẫn ra "Cơm sườn". */
+function normalize(str){
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+}
+
+/** Danh sách section sau khi áp bộ lọc tìm kiếm. */
+function visibleMenu(){
+  if (!searchQuery.trim()) return MENU;
+  const q = normalize(searchQuery.trim());
+  return MENU
+    .map((section) => ({
+      category: section.category,
+      items: section.items.filter((i) => normalize(i.name + ' ' + i.desc).includes(q)),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  renderTabs();
+  renderMenu();
+});
 
 // ---------------------------------------------------------------------------
-// 4. RENDER TABS DANH MỤC (gọi lại sau khi MENU đã có dữ liệu từ API)
+// 4. RENDER TABS DANH MỤC (kèm số lượng món trong mỗi danh mục)
 // ---------------------------------------------------------------------------
 const tabsEl = document.getElementById('categoryTabs');
 function renderTabs(){
+  const sections = visibleMenu();
   tabsEl.innerHTML = '';
-  MENU.forEach((section, idx) => {
+  sections.forEach((section, idx) => {
     const tab = document.createElement('button');
     tab.className = 'tab' + (idx === 0 ? ' is-active' : '');
-    tab.textContent = section.category;
+    tab.innerHTML = `${section.category} <span class="tab__count">${section.items.length}</span>`;
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('is-active'));
       tab.classList.add('is-active');
-      document.getElementById('sec-' + idx).scrollIntoView({ behavior:'smooth', block:'start' });
+      document.getElementById('sec-' + idx)?.scrollIntoView({ behavior:'smooth', block:'start' });
     });
     tabsEl.appendChild(tab);
   });
@@ -81,20 +134,53 @@ function formatVnd(n){
   return n.toLocaleString('vi-VN') + 'đ';
 }
 
+/** HTML phần ảnh của thẻ món: ảnh thật nếu có, không thì emoji trên nền gradient. */
+function dishMediaHtml(item){
+  const flag = item.isNew ? `<span class="dish__flag">Mới</span>` : '';
+  if (item.image) {
+    // Ảnh lỗi/hỏng link -> tự thay bằng emoji placeholder, không để ô vỡ ảnh
+    return `<div class="dish__media">${flag}<img src="${item.image}" alt="${item.name}" loading="lazy"
+      onerror="this.remove();this.parentElement.classList.add('dish__media--placeholder');this.parentElement.insertAdjacentText('beforeend','${emojiFor(item.category)}')"></div>`;
+  }
+  return `<div class="dish__media dish__media--placeholder">${flag}${emojiFor(item.category)}</div>`;
+}
+
 function renderMenu(){
+  const sections = visibleMenu();
   menuEl.innerHTML = '';
-  MENU.forEach((section, idx) => {
+
+  if (sections.length === 0) {
+    menuEl.innerHTML = `
+      <div class="menu__empty">
+        <strong>🍳</strong>
+        ${searchQuery.trim()
+          ? `Không tìm thấy món nào cho “${searchQuery.trim()}”.<br>Thử từ khoá khác xem sao nhé.`
+          : `Hiện chưa có món nào trong khung giờ này.<br>Bạn quay lại vào giờ cơm giúp quán nhé!`}
+      </div>`;
+    return;
+  }
+
+  sections.forEach((section, idx) => {
     const title = document.createElement('h3');
     title.className = 'menu__section-title';
     title.id = 'sec-' + idx;
     title.textContent = section.category;
     menuEl.appendChild(title);
 
+    if (CATEGORY_TAGLINE[section.category]) {
+      const sub = document.createElement('p');
+      sub.className = 'menu__section-sub';
+      sub.textContent = CATEGORY_TAGLINE[section.category];
+      menuEl.appendChild(sub);
+    }
+
     section.items.forEach(item => {
       const qty = cart.get(item.id)?.qty || 0;
       const card = document.createElement('article');
       card.className = 'dish' + (!item.available ? ' dish--soldout' : '');
+      card.dataset.dish = item.id;
       card.innerHTML = `
+        ${dishMediaHtml(item)}
         <div class="dish__body">
           <div class="dish__top">
             <p class="dish__name">${item.name}</p>
@@ -119,13 +205,19 @@ function renderMenu(){
     });
   });
 
-  // Gắn sự kiện cho nút "+ Thêm"
-  menuEl.querySelectorAll('[data-add]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      changeQty(btn.getAttribute('data-add'), 1);
+  // Bấm vào thẻ món -> mở CHI TIẾT MÓN (trừ khi bấm vào nút +/-/Thêm)
+  menuEl.querySelectorAll('.dish').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      const item = findItem(card.dataset.dish);
+      if (item && item.available) openDishSheet(item);
     });
   });
-  // Gắn sự kiện cho stepper (+/-)
+  // Nút "+ Thêm"
+  menuEl.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => changeQty(btn.getAttribute('data-add'), 1));
+  });
+  // Stepper (+/-)
   menuEl.querySelectorAll('.stepper').forEach(stepper => {
     const id = stepper.getAttribute('data-id');
     stepper.querySelector('[data-action="inc"]').addEventListener('click', () => changeQty(id, 1));
@@ -153,7 +245,61 @@ function changeQty(id, delta){
 }
 
 // ---------------------------------------------------------------------------
-// 6. THANH GIỎ HÀNG NỔI
+// 6. SHEET CHI TIẾT MÓN ĂN
+// Ảnh lớn + mô tả đầy đủ + danh mục + khung giờ + chọn số lượng.
+// ---------------------------------------------------------------------------
+const dishSheet = document.getElementById('dishSheet');
+let detailItem = null;
+let detailQty = 1;
+
+function openDishSheet(item){
+  detailItem = item;
+  detailQty = Math.max(1, cart.get(item.id)?.qty || 1);
+
+  const media = document.getElementById('dishDetailMedia');
+  if (item.image) {
+    media.innerHTML = `<img src="${item.image}" alt="${item.name}"
+      onerror="this.remove();this.parentElement.insertAdjacentText('beforeend','${emojiFor(item.category)}')">`;
+  } else {
+    media.textContent = emojiFor(item.category);
+  }
+
+  document.getElementById('dishDetailName').textContent = item.name;
+  document.getElementById('dishDetailPrice').textContent = formatVnd(item.price);
+
+  const meta = [];
+  meta.push(`<span class="meta-chip">${emojiFor(item.category)} ${item.category}</span>`);
+  meta.push(item.hours
+    ? `<span class="meta-chip meta-chip--warn">⏰ Phục vụ ${item.hours}</span>`
+    : `<span class="meta-chip">⏰ Bán cả ngày</span>`);
+  if (item.isNew) meta.push(`<span class="meta-chip meta-chip--gold">✨ Món mới</span>`);
+  document.getElementById('dishDetailMeta').innerHTML = meta.join('');
+
+  document.getElementById('dishDetailDesc').textContent =
+    item.desc || 'Món ngon chuẩn vị cơm nhà — hỏi nhân viên để biết thêm về nguyên liệu và cách chế biến.';
+
+  renderDetailQty();
+  dishSheet.hidden = false;
+}
+
+function renderDetailQty(){
+  document.getElementById('dishQty').textContent = detailQty;
+  document.getElementById('dishQtyDec').disabled = detailQty <= 1;
+  document.getElementById('dishAddBtn').textContent =
+    `Thêm vào giỏ · ${formatVnd(detailItem.price * detailQty)}`;
+}
+
+document.getElementById('dishQtyInc').addEventListener('click', () => { detailQty++; renderDetailQty(); });
+document.getElementById('dishQtyDec').addEventListener('click', () => { if (detailQty > 1){ detailQty--; renderDetailQty(); } });
+document.getElementById('dishAddBtn').addEventListener('click', () => {
+  cart.set(detailItem.id, { item: detailItem, qty: detailQty });
+  dishSheet.hidden = true;
+  renderMenu();
+  renderCartBar();
+});
+
+// ---------------------------------------------------------------------------
+// 7. THANH GIỎ HÀNG NỔI
 // ---------------------------------------------------------------------------
 const cartBar = document.getElementById('cartBar');
 const cartCount = document.getElementById('cartCount');
@@ -178,23 +324,55 @@ function renderCartBar(){
 cartBar.addEventListener('click', openCartSheet);
 
 // ---------------------------------------------------------------------------
-// 7. SHEET GIỎ HÀNG
+// 8. SHEET GIỎ HÀNG — chỉnh số lượng ngay trong giỏ, có ảnh món
 // ---------------------------------------------------------------------------
 const cartSheet = document.getElementById('cartSheet');
 const cartItemsEl = document.getElementById('cartItems');
 const sheetTotal = document.getElementById('sheetTotal');
 
-function openCartSheet(){
+function cartLineThumb(item){
+  if (item.image) {
+    return `<div class="cart-line__thumb"><img src="${item.image}" alt=""
+      onerror="this.remove();this.parentElement.insertAdjacentText('beforeend','${emojiFor(item.category)}')"></div>`;
+  }
+  return `<div class="cart-line__thumb">${emojiFor(item.category)}</div>`;
+}
+
+function renderCartSheet(){
   cartItemsEl.innerHTML = '';
   cart.forEach(({ item, qty }) => {
     const line = document.createElement('div');
     line.className = 'cart-line';
     line.innerHTML = `
-      <span class="cart-line__name">${qty} × ${item.name}</span>
-      <span class="cart-line__price">${formatVnd(item.price * qty)}</span>`;
+      ${cartLineThumb(item)}
+      <div class="cart-line__info">
+        <p class="cart-line__name">${item.name}</p>
+        <p class="cart-line__price">${formatVnd(item.price)} / phần · ${formatVnd(item.price * qty)}</p>
+      </div>
+      <div class="stepper" data-id="${item.id}">
+        <button class="stepper__btn" data-action="dec">−</button>
+        <span class="stepper__qty">${qty}</span>
+        <button class="stepper__btn" data-action="inc">+</button>
+      </div>`;
     cartItemsEl.appendChild(line);
   });
+
+  cartItemsEl.querySelectorAll('.stepper').forEach(stepper => {
+    const id = stepper.getAttribute('data-id');
+    const update = (delta) => {
+      changeQty(id, delta);
+      if (cart.size === 0) { cartSheet.hidden = true; return; } // hết món thì đóng giỏ
+      renderCartSheet();
+    };
+    stepper.querySelector('[data-action="inc"]').addEventListener('click', () => update(1));
+    stepper.querySelector('[data-action="dec"]').addEventListener('click', () => update(-1));
+  });
+
   sheetTotal.textContent = formatVnd(getCartTotal());
+}
+
+function openCartSheet(){
+  renderCartSheet();
   cartSheet.hidden = false;
 }
 
@@ -206,7 +384,7 @@ document.querySelectorAll('[data-close]').forEach(el => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. ĐẶT CƠM — gọi backend thật để sinh số thứ tự
+// 9. ĐẶT CƠM — gọi backend để sinh số thứ tự
 // Backend (POST /api/orders) chịu trách nhiệm sinh orderNumber TĂNG DẦN &
 // DUY NHẤT theo ngày (dùng MongoDB Counter, thao tác atomic) để không bao
 // giờ trùng hoặc nhảy số giữa các khách đặt trước/sau — điểm mấu chốt
@@ -253,7 +431,7 @@ async function submitOrder(){
 placeOrderBtn.addEventListener('click', submitOrder);
 
 // ---------------------------------------------------------------------------
-// 9. THANH TOÁN — chọn Tiền mặt hoặc VietQR (gọi backend thật)
+// 10. THANH TOÁN — chọn Tiền mặt hoặc VietQR
 // ---------------------------------------------------------------------------
 document.getElementById('payCashBtn').addEventListener('click', async () => {
   document.getElementById('ticketSheet').hidden = true;
@@ -297,8 +475,8 @@ async function openVietQr(order){
   }
 }
 
-// Kiểm tra định kỳ xem admin đã xác nhận thanh toán chưa (mỗi 4 giây, tối đa 2 phút).
-// Muốn tức thời hơn có thể thay bằng lắng nghe Socket.IO 'order_updated' như bên admin.
+// Kiểm tra định kỳ xem thanh toán đã được xác nhận chưa (admin bấm tay hoặc
+// webhook ngân hàng tự xác nhận) — mỗi 4 giây, tối đa 2 phút.
 function pollPaymentStatus(orderId){
   let attempts = 0;
   const timer = setInterval(async () => {

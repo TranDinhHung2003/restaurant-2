@@ -126,7 +126,14 @@ async function loadMenu() {
 function renderMenuTable() {
   menuTableBody.innerHTML = menuItems.map((m) => `
     <tr>
-      <td>${m.name}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${m.image
+            ? `<img src="${m.image}" alt="" style="width:38px;height:38px;object-fit:cover;border-radius:8px;" onerror="this.style.display='none'">`
+            : ''}
+          <span>${m.name}</span>
+        </div>
+      </td>
       <td>${m.category}</td>
       <td class="price">${formatVnd(m.price)}</td>
       <td>
@@ -180,6 +187,7 @@ function openMenuModal(item) {
   document.getElementById('menuCategory').value = item?.category || '';
   document.getElementById('menuPrice').value = item?.price ?? '';
   document.getElementById('menuDesc').value = item?.description || '';
+  document.getElementById('menuImage').value = item?.image || '';
   document.getElementById('menuHours').value = item?.availableHours || '';
   document.getElementById('menuAvailable').checked = item ? item.available : true;
   menuModal.hidden = false;
@@ -193,6 +201,7 @@ menuForm.addEventListener('submit', async (e) => {
     category: document.getElementById('menuCategory').value.trim(),
     price: Number(document.getElementById('menuPrice').value),
     description: document.getElementById('menuDesc').value.trim(),
+    image: document.getElementById('menuImage').value.trim(),
     availableHours: document.getElementById('menuHours').value.trim(),
     available: document.getElementById('menuAvailable').checked,
   };
