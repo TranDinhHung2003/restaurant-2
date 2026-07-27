@@ -187,6 +187,11 @@ textarea{font-family:inherit;}
   -webkit-box-orient:vertical;
   overflow:hidden;
 }
+.dish__hours{
+  font-size:11.5px;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+}
 .dish__bottom{display:flex;align-items:center;justify-content:space-between;}
 .dish__price{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--lacquer);}
 .dish__badge{

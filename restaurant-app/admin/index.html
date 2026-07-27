@@ -55,7 +55,7 @@
         </header>
         <table class="table" id="menuTable">
           <thead>
-            <tr><th>Món</th><th>Danh mục</th><th>Giá</th><th>Còn hàng</th><th></th></tr>
+            <tr><th>Món</th><th>Danh mục</th><th>Giá</th><th>Khung giờ</th><th>Còn hàng</th><th></th></tr>
           </thead>
           <tbody id="menuTableBody"></tbody>
         </table>
@@ -86,6 +86,10 @@
       <label class="field"><span>Danh mục</span><input type="text" id="menuCategory" required placeholder="Món chính, Khai vị..."></label>
       <label class="field"><span>Giá (đ)</span><input type="number" id="menuPrice" required min="0"></label>
       <label class="field"><span>Mô tả</span><input type="text" id="menuDesc"></label>
+      <label class="field">
+        <span>Khung giờ phục vụ (bỏ trống = cả ngày)</span>
+        <input type="text" id="menuHours" placeholder="vd: 06:00-10:00, 17:00-21:00">
+      </label>
       <label class="field field--checkbox"><input type="checkbox" id="menuAvailable" checked><span>Còn hàng</span></label>
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" data-close>Huỷ</button>

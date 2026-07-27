@@ -28,6 +28,8 @@ async function fetchMenu(){
   const res = await fetch(`${API_BASE}/api/menu`);
   if (!res.ok) throw new Error('Không tải được thực đơn');
   const flatItems = await res.json(); // MenuItem[] phẳng từ MongoDB
+  // Backend đã LỌC SẴN theo khung giờ phục vụ (availableHours) — món ngoài giờ
+  // không được trả về, nên khách chỉ thấy các món đang bán ở thời điểm hiện tại.
 
   // Nhóm theo category để hiển thị theo tab, giữ đúng field cần cho renderMenu()
   const grouped = {};
@@ -37,7 +39,8 @@ async function fetchMenu(){
       name: raw.name,
       price: raw.price,
       desc: raw.description || '',
-      available: raw.available,
+      available: raw.availableNow ?? raw.available,
+      hours: raw.availableHours || '', // vd "10:30-14:00" — hiện cho khách biết khung giờ bán
     };
     if (!grouped[raw.category]) grouped[raw.category] = [];
     grouped[raw.category].push(item);
@@ -97,6 +100,7 @@ function renderMenu(){
             <p class="dish__name">${item.name}</p>
           </div>
           <p class="dish__desc">${item.desc}</p>
+          ${item.hours ? `<p class="dish__hours">⏰ Phục vụ: ${item.hours}</p>` : ''}
           <div class="dish__bottom">
             <span class="dish__price">${formatVnd(item.price)}</span>
             ${!item.available

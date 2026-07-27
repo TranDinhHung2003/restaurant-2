@@ -4,6 +4,7 @@ const MenuItem = require('../models/MenuItem');
 const { getNextOrderNumber } = require('../models/Counter');
 const { requireAdmin } = require('../middleware/auth');
 const { buildVietQrUrl } = require('../utils/vietqr');
+const { isWithinHours } = require('../utils/hours');
 
 const router = express.Router();
 
@@ -33,6 +34,11 @@ router.post('/', async (req, res) => {
       const menuItem = menuItems.find((m) => String(m._id) === line.id);
       if (!menuItem) return res.status(400).json({ message: `Món không tồn tại: ${line.id}` });
       if (!menuItem.available) return res.status(409).json({ message: `Món "${menuItem.name}" hiện đã hết` });
+      if (!isWithinHours(menuItem.availableHours)) {
+        return res.status(409).json({
+          message: `Món "${menuItem.name}" chỉ phục vụ trong khung giờ ${menuItem.availableHours}`,
+        });
+      }
 
       const qty = Math.max(1, Number(line.qty) || 1);
       orderItems.push({ menuItem: menuItem._id, name: menuItem.name, price: menuItem.price, qty });
@@ -87,8 +93,9 @@ router.get('/:id/vietqr', async (req, res) => {
   const addInfo = `DH${order.orderNumber}${String(order._id).slice(-4)}`;
   const qrUrl = buildVietQrUrl({ amount: order.total, addInfo });
 
-  // Lưu lại phương thức thanh toán khách đã chọn
+  // Lưu lại phương thức thanh toán + nội dung CK để webhook ngân hàng đối soát
   order.payment.method = 'vietqr';
+  order.payment.addInfo = addInfo;
   await order.save();
   req.app.get('io').to('admin_room').emit('order_updated', order);
 

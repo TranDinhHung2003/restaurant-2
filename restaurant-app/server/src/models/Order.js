@@ -36,6 +36,10 @@ const orderSchema = new mongoose.Schema(
       method: { type: String, enum: ['cash', 'vietqr', null], default: null },
       status: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
       paidAt: { type: Date, default: null },
+      // Nội dung chuyển khoản VietQR (vd "DH12abcd") — webhook ngân hàng
+      // (Casso/SePay/PayOS) dò chuỗi này trong nội dung giao dịch để tự
+      // động xác nhận thanh toán, không cần admin bấm tay.
+      addInfo: { type: String, default: '' },
     },
   },
   { timestamps: true }

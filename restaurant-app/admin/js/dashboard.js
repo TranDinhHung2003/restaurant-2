@@ -117,7 +117,9 @@ const menuTableBody = document.getElementById('menuTableBody');
 let menuItems = [];
 
 async function loadMenu() {
-  menuItems = await apiFetch('/api/menu');
+  // "?all=1": admin xem TẤT CẢ món, kể cả món đang ngoài khung giờ phục vụ
+  // (API public mặc định đã lọc bớt các món ngoài giờ cho khách).
+  menuItems = await apiFetch('/api/menu?all=1');
   renderMenuTable();
 }
 
@@ -127,6 +129,10 @@ function renderMenuTable() {
       <td>${m.name}</td>
       <td>${m.category}</td>
       <td class="price">${formatVnd(m.price)}</td>
+      <td>
+        ${m.availableHours || 'Cả ngày'}
+        ${m.available && m.availableNow === false ? '<br><small style="color:#C23B22;">(đang ngoài giờ — khách không thấy)</small>' : ''}
+      </td>
       <td>
         <label class="switch">
           <input type="checkbox" data-toggle="${m._id}" ${m.available ? 'checked' : ''}>
@@ -174,6 +180,7 @@ function openMenuModal(item) {
   document.getElementById('menuCategory').value = item?.category || '';
   document.getElementById('menuPrice').value = item?.price ?? '';
   document.getElementById('menuDesc').value = item?.description || '';
+  document.getElementById('menuHours').value = item?.availableHours || '';
   document.getElementById('menuAvailable').checked = item ? item.available : true;
   menuModal.hidden = false;
 }
@@ -186,12 +193,18 @@ menuForm.addEventListener('submit', async (e) => {
     category: document.getElementById('menuCategory').value.trim(),
     price: Number(document.getElementById('menuPrice').value),
     description: document.getElementById('menuDesc').value.trim(),
+    availableHours: document.getElementById('menuHours').value.trim(),
     available: document.getElementById('menuAvailable').checked,
   };
-  if (id) {
-    await apiFetch(`/api/menu/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-  } else {
-    await apiFetch('/api/menu', { method: 'POST', body: JSON.stringify(payload) });
+  try {
+    if (id) {
+      await apiFetch(`/api/menu/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await apiFetch('/api/menu', { method: 'POST', body: JSON.stringify(payload) });
+    }
+  } catch (err) {
+    alert(err.message); // vd: khung giờ sai định dạng
+    return;
   }
   menuModal.hidden = true;
   loadMenu();
@@ -219,9 +232,11 @@ function renderTables(tables) {
     </div>
   `).join('');
 
-  // Vẽ QR sau khi đã render xong canvas vào DOM
+  // Vẽ QR sau khi đã render xong canvas vào DOM.
+  // Dùng qr_code_link đã lưu trong DB (sinh từ PUBLIC_URL khi tạo bàn);
+  // bàn cũ chưa có thì fallback về domain hiện tại.
   tables.forEach((t) => {
-    const url = `${window.location.origin}/?table=${encodeURIComponent(t.tableNumber)}`;
+    const url = t.qrCodeLink || `${window.location.origin}/?table=${encodeURIComponent(t.tableNumber)}`;
     QRCode.toCanvas(document.getElementById(`qr-${t._id}`), url, { width: 150, margin: 1 });
   });
 }
