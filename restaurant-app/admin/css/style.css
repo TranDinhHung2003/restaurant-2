@@ -1,0 +1,156 @@
+/* Dùng chung bảng màu với trang khách hàng để đồng bộ thương hiệu,
+   nhưng bố cục là dashboard chức năng (bàn làm việc), ưu tiên rõ ràng,
+   dễ quét thông tin hơn là yếu tố cảm xúc. */
+:root{
+  --jade-900:#122A22;
+  --jade-700:#1C4B3D;
+  --jade-500:#2E6E58;
+  --paper:#F7F1E3;
+  --paper-card:#FFFDF8;
+  --lacquer:#C23B22;
+  --gold:#C9A227;
+  --ink:#1F2A24;
+  --ink-soft:#5B6B62;
+  --line:#E4DAC2;
+  --ok:#2E6E58;
+  --warn:#C9A227;
+  --danger:#C23B22;
+
+  --font-display:'Fraunces', serif;
+  --font-body:'Be Vietnam Pro', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+  --radius-md:12px;
+  --radius-sm:8px;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--ink);}
+
+/* ---------- LOGIN ---------- */
+.login-body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.login-card{
+  background:var(--paper-card);border:1px solid var(--line);border-radius:18px;
+  padding:32px 28px;width:100%;max-width:360px;text-align:center;
+  box-shadow:0 10px 30px rgba(18,42,34,0.1);
+}
+.login-card__mark{
+  width:44px;height:44px;border-radius:50%;background:var(--jade-700);color:var(--paper);
+  font-family:var(--font-display);font-weight:700;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+}
+.login-card__title{font-family:var(--font-display);font-size:20px;margin:0 0 4px;}
+.login-card__sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 22px;}
+.login-card__error{color:var(--danger);font-size:12.5px;margin:0 0 10px;}
+
+.field{display:flex;flex-direction:column;gap:6px;text-align:left;margin-bottom:14px;font-size:13px;font-weight:600;color:var(--ink-soft);}
+.field input,.field select{
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;
+  font-family:inherit;background:#fff;color:var(--ink);
+}
+.field--checkbox{flex-direction:row;align-items:center;gap:8px;}
+.field--checkbox input{width:16px;height:16px;}
+
+.btn{border:none;border-radius:999px;font-weight:700;font-size:13.5px;padding:11px 18px;cursor:pointer;}
+.btn--primary{background:var(--lacquer);color:#fff;}
+.btn--ghost{background:transparent;color:var(--ink-soft);}
+.btn--block{width:100%;}
+.btn--small{padding:6px 12px;font-size:12px;border-radius:8px;}
+.btn--danger-outline{background:#fff;border:1px solid var(--danger);color:var(--danger);}
+
+/* ---------- APP SHELL ---------- */
+.app-shell{display:flex;min-height:100vh;}
+.sidebar{
+  width:220px;flex:0 0 auto;background:var(--jade-700);color:var(--paper);
+  display:flex;flex-direction:column;padding:20px 14px;
+}
+.sidebar__brand{display:flex;align-items:center;gap:10px;padding:0 6px 24px;}
+.sidebar__brand-text{font-family:var(--font-display);font-weight:700;font-size:16px;}
+.sidebar__nav{display:flex;flex-direction:column;gap:4px;flex:1;}
+.sidebar__link{
+  text-align:left;background:transparent;border:none;color:rgba(247,241,227,0.75);
+  padding:11px 12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;
+}
+.sidebar__link.is-active,.sidebar__link:hover{background:rgba(247,241,227,0.12);color:#fff;}
+.sidebar__logout{
+  background:transparent;border:1px solid rgba(247,241,227,0.3);color:var(--paper);
+  padding:10px;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;
+}
+
+.main{flex:1;padding:28px 34px;overflow-x:auto;}
+.panel{display:none;}
+.panel.is-active{display:block;}
+.panel__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+.panel__header h1{font-family:var(--font-display);font-size:22px;margin:0;color:var(--jade-700);}
+.panel__filters{display:flex;align-items:center;gap:12px;}
+.panel__filters select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;}
+
+.live-dot{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ok);}
+.live-dot i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+.empty-hint{color:var(--ink-soft);font-size:13.5px;}
+
+/* ---------- ORDER GRID ---------- */
+.order-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.order-card{
+  background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:14px;position:relative;
+}
+.order-card--new{animation:flash 1.4s ease;}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--gold);}100%{box-shadow:none;}}
+.order-card__top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.order-card__number{font-family:var(--font-mono);font-weight:700;font-size:26px;color:var(--jade-700);line-height:1;}
+.order-card__table{font-size:12px;color:var(--ink-soft);font-weight:600;margin-top:2px;}
+.order-card__items{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;}
+.order-card__items li{display:flex;justify-content:space-between;padding:2px 0;}
+.order-card__note{font-size:12px;color:var(--ink-soft);font-style:italic;margin:0 0 10px;}
+.order-card__total{font-family:var(--font-mono);font-weight:700;color:var(--lacquer);font-size:14px;margin-bottom:10px;}
+
+.badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:999px;}
+.badge--pending{background:#FBEBD9;color:#8A5A0A;}
+.badge--preparing{background:#E4EEFB;color:#1D5FA6;}
+.badge--served{background:#E4F1EA;color:var(--ok);}
+.badge--cancelled{background:#F3E3E1;color:var(--danger);}
+.badge--paid{background:#E4F1EA;color:var(--ok);}
+.badge--unpaid{background:#F3E3E1;color:var(--danger);}
+
+.order-card__row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.order-card__actions{display:flex;flex-wrap:wrap;gap:6px;}
+
+/* ---------- TABLE (menu) ---------- */
+.table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;}
+.table th,.table td{text-align:left;padding:10px 12px;font-size:13.5px;border-bottom:1px solid var(--line);}
+.table th{background:#F1EAD6;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);}
+.table td.price{font-family:var(--font-mono);color:var(--lacquer);font-weight:700;}
+.switch{position:relative;width:38px;height:22px;display:inline-block;}
+.switch input{opacity:0;width:0;height:0;}
+.switch__track{position:absolute;inset:0;background:#DCD3B6;border-radius:999px;transition:.15s;cursor:pointer;}
+.switch__track::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;}
+.switch input:checked + .switch__track{background:var(--ok);}
+.switch input:checked + .switch__track::before{transform:translateX(16px);}
+
+/* ---------- TABLES / QR ---------- */
+.inline-form{display:flex;gap:8px;}
+.inline-form input{border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;}
+.qr-card{background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px;text-align:center;}
+.qr-card canvas{margin:0 auto 10px;}
+.qr-card__number{font-family:var(--font-mono);font-weight:700;font-size:18px;color:var(--jade-700);}
+.qr-card__actions{display:flex;gap:6px;justify-content:center;margin-top:10px;}
+
+/* ---------- MODAL ---------- */
+.modal[hidden]{display:none;}
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;}
+.modal__backdrop{position:absolute;inset:0;background:rgba(18,42,34,0.5);}
+.modal__panel{
+  position:relative;background:var(--paper-card);border-radius:16px;padding:24px;width:100%;max-width:380px;
+}
+.modal__panel h2{font-family:var(--font-display);margin:0 0 16px;font-size:18px;color:var(--jade-700);}
+.modal__actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
+
+@media (max-width:760px){
+  .app-shell{flex-direction:column;}
+  .sidebar{width:100%;flex-direction:row;align-items:center;padding:12px 16px;}
+  .sidebar__nav{flex-direction:row;flex:1;overflow-x:auto;}
+  .sidebar__logout{padding:8px 12px;}
+  .main{padding:18px;}
+}

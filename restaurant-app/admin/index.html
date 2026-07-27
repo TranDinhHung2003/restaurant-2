@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bảng điều khiển — Quán Nhà</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <span class="topbar__mark">QN</span>
+        <span class="sidebar__brand-text">Quán Nhà</span>
+      </div>
+      <nav class="sidebar__nav">
+        <button class="sidebar__link is-active" data-panel="orders">📋 Đơn hàng</button>
+        <button class="sidebar__link" data-panel="menu">🍚 Thực đơn</button>
+        <button class="sidebar__link" data-panel="tables">🔗 Bàn &amp; QR</button>
+      </nav>
+      <button class="sidebar__logout" id="logoutBtn">Đăng xuất</button>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- ===== PANEL: ĐƠN HÀNG ===== -->
+      <section class="panel is-active" id="panel-orders">
+        <header class="panel__header">
+          <h1>Đơn hàng hôm nay</h1>
+          <div class="panel__filters">
+            <select id="statusFilter">
+              <option value="">Tất cả trạng thái</option>
+              <option value="pending">Chờ chế biến</option>
+              <option value="preparing">Đang chế biến</option>
+              <option value="served">Đã phục vụ</option>
+              <option value="cancelled">Đã huỷ</option>
+            </select>
+            <span class="live-dot"><i></i> Realtime</span>
+          </div>
+        </header>
+        <div class="order-grid" id="orderGrid">
+          <p class="empty-hint">Đang tải đơn hàng…</p>
+        </div>
+      </section>
+
+      <!-- ===== PANEL: THỰC ĐƠN ===== -->
+      <section class="panel" id="panel-menu">
+        <header class="panel__header">
+          <h1>Quản lý thực đơn</h1>
+          <button class="btn btn--primary" id="addMenuBtn">+ Thêm món</button>
+        </header>
+        <table class="table" id="menuTable">
+          <thead>
+            <tr><th>Món</th><th>Danh mục</th><th>Giá</th><th>Còn hàng</th><th></th></tr>
+          </thead>
+          <tbody id="menuTableBody"></tbody>
+        </table>
+      </section>
+
+      <!-- ===== PANEL: BÀN & QR ===== -->
+      <section class="panel" id="panel-tables">
+        <header class="panel__header">
+          <h1>Bàn &amp; mã QR</h1>
+          <form class="inline-form" id="addTableForm">
+            <input type="text" id="newTableNumber" placeholder="Số bàn, vd: 06" required>
+            <button class="btn btn--primary" type="submit">+ Thêm bàn</button>
+          </form>
+        </header>
+        <div class="qr-grid" id="qrGrid"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== MODAL THÊM/SỬA MÓN ===== -->
+  <div class="modal" id="menuModal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <form class="modal__panel" id="menuForm">
+      <h2 id="menuModalTitle">Thêm món mới</h2>
+      <input type="hidden" id="menuItemId">
+      <label class="field"><span>Tên món</span><input type="text" id="menuName" required></label>
+      <label class="field"><span>Danh mục</span><input type="text" id="menuCategory" required placeholder="Món chính, Khai vị..."></label>
+      <label class="field"><span>Giá (đ)</span><input type="number" id="menuPrice" required min="0"></label>
+      <label class="field"><span>Mô tả</span><input type="text" id="menuDesc"></label>
+      <label class="field field--checkbox"><input type="checkbox" id="menuAvailable" checked><span>Còn hàng</span></label>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" data-close>Huỷ</button>
+        <button type="submit" class="btn btn--primary">Lưu</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

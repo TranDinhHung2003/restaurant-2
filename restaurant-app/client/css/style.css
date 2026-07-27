@@ -1,0 +1,401 @@
+/* ==========================================================================
+   TOKENS
+   Bảng màu lấy cảm hứng từ quán cơm Việt: lá dong xanh ngọc, giấy gói cơm
+   màu kem, mực dấu đỏ son (dùng cho số thứ tự / hành động chính), và ánh
+   đồng cho các điểm nhấn phụ.
+   ========================================================================== */
+:root{
+  --jade-900:#122A22;
+  --jade-700:#1C4B3D;
+  --jade-500:#2E6E58;
+  --paper:#F7F1E3;
+  --paper-card:#FFFDF8;
+  --lacquer:#C23B22;
+  --lacquer-dark:#9E2E19;
+  --gold:#C9A227;
+  --ink:#1F2A24;
+  --ink-soft:#5B6B62;
+  --line:#E4DAC2;
+
+  --font-display:'Fraunces', serif;
+  --font-body:'Be Vietnam Pro', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+
+  --radius-lg:20px;
+  --radius-md:14px;
+  --radius-sm:8px;
+  --shadow-card:0 2px 10px rgba(18,42,34,0.08);
+  --shadow-float:0 10px 30px rgba(18,42,34,0.28);
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font-body);
+  background:var(--paper);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:96px; /* chừa chỗ cho cart-bar nổi */
+}
+img{max-width:100%;display:block;}
+button{font-family:inherit;}
+textarea{font-family:inherit;}
+
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  background:var(--jade-700);
+  color:var(--paper);
+}
+.topbar__brand{display:flex;align-items:center;gap:10px;}
+.topbar__mark{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:15px;
+  width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--paper);
+  color:var(--jade-700);
+  border-radius:50%;
+}
+.topbar__name{
+  font-family:var(--font-display);
+  font-size:18px;
+  font-weight:600;
+  margin:0;
+  line-height:1.1;
+}
+.topbar__sub{
+  margin:2px 0 0;
+  font-size:11.5px;
+  color:rgba(247,241,227,0.7);
+}
+.topbar__table{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  line-height:1;
+  background:rgba(247,241,227,0.12);
+  border:1px solid rgba(247,241,227,0.25);
+  border-radius:var(--radius-sm);
+  padding:6px 14px;
+}
+.topbar__table-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(247,241,227,0.7);}
+.topbar__table-number{font-family:var(--font-mono);font-weight:700;font-size:18px;margin-top:2px;}
+
+/* ==========================================================================
+   TABS DANH MỤC
+   ========================================================================== */
+.tabs{
+  position:sticky;
+  top:64px;
+  z-index:19;
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  padding:12px 16px;
+  background:var(--paper);
+  border-bottom:1px solid var(--line);
+  scrollbar-width:none;
+}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{
+  flex:0 0 auto;
+  padding:8px 16px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--paper-card);
+  color:var(--ink-soft);
+  font-size:13.5px;
+  font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s ease;
+}
+.tab.is-active{
+  background:var(--jade-700);
+  border-color:var(--jade-700);
+  color:var(--paper);
+}
+
+/* ==========================================================================
+   DANH SÁCH MÓN
+   ========================================================================== */
+.menu{padding:18px 16px 8px;}
+.menu__section-title{
+  font-family:var(--font-display);
+  font-size:15px;
+  font-weight:600;
+  color:var(--jade-700);
+  margin:22px 0 10px;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+}
+.menu__section-title:first-child{margin-top:0;}
+.menu__section-title::after{
+  content:'';
+  flex:1;
+  height:1px;
+  background:var(--line);
+}
+
+.dish{
+  display:flex;
+  gap:12px;
+  background:var(--paper-card);
+  border:1px solid var(--line);
+  border-radius:var(--radius-md);
+  padding:12px;
+  margin-bottom:10px;
+  box-shadow:var(--shadow-card);
+  position:relative;
+}
+.dish--soldout{opacity:.5;}
+.dish__thumb{
+  width:76px;height:76px;
+  border-radius:var(--radius-sm);
+  object-fit:cover;
+  background:var(--line);
+  flex:0 0 auto;
+}
+.dish__body{flex:1;min-width:0;}
+.dish__top{display:flex;justify-content:space-between;gap:8px;}
+.dish__name{
+  font-family:var(--font-display);
+  font-size:15.5px;
+  font-weight:600;
+  margin:0;
+  color:var(--ink);
+}
+.dish__desc{
+  font-size:12.5px;
+  color:var(--ink-soft);
+  margin:4px 0 8px;
+  line-height:1.4;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.dish__bottom{display:flex;align-items:center;justify-content:space-between;}
+.dish__price{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--lacquer);}
+.dish__badge{
+  font-size:10.5px;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--lacquer-dark);
+  background:#FBEBE5;
+  padding:3px 8px;
+  border-radius:999px;
+  white-space:nowrap;
+}
+
+.stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
+.stepper__btn{
+  width:28px;height:28px;
+  border:none;
+  background:var(--paper);
+  color:var(--jade-700);
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.stepper__btn:disabled{color:#c9c2ad;cursor:not-allowed;}
+.stepper__qty{
+  min-width:26px;
+  text-align:center;
+  font-family:var(--font-mono);
+  font-weight:700;
+  font-size:13px;
+}
+.add-btn{
+  border:none;
+  background:var(--jade-700);
+  color:var(--paper);
+  font-weight:700;
+  font-size:13px;
+  padding:7px 14px;
+  border-radius:999px;
+  cursor:pointer;
+}
+
+/* ==========================================================================
+   THANH GIỎ HÀNG NỔI
+   ========================================================================== */
+.cart-bar{
+  position:fixed;
+  left:16px;right:16px;bottom:16px;
+  z-index:30;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--lacquer);
+  color:#fff;
+  border:none;
+  border-radius:999px;
+  padding:12px 18px;
+  box-shadow:var(--shadow-float);
+  cursor:pointer;
+}
+.cart-bar__count{
+  background:rgba(255,255,255,0.25);
+  font-family:var(--font-mono);
+  font-weight:700;
+  font-size:13px;
+  width:24px;height:24px;
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+}
+.cart-bar__label{flex:1;text-align:left;font-weight:600;font-size:14px;}
+.cart-bar__total{font-family:var(--font-mono);font-weight:700;font-size:14px;}
+
+/* ==========================================================================
+   BOTTOM SHEET (dùng chung cho giỏ hàng / vé / QR)
+   ========================================================================== */
+.sheet{position:fixed;inset:0;z-index:50;}
+.sheet[hidden]{display:none;}
+.sheet__backdrop{position:absolute;inset:0;background:rgba(18,42,34,0.55);}
+.sheet__panel{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  max-height:88vh;
+  overflow-y:auto;
+  background:var(--paper);
+  border-radius:22px 22px 0 0;
+  padding:10px 20px 24px;
+  animation:slide-up .22s ease-out;
+}
+@keyframes slide-up{from{transform:translateY(16px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.sheet__handle{width:36px;height:4px;background:var(--line);border-radius:99px;margin:6px auto 14px;}
+.sheet__title{font-family:var(--font-display);font-size:19px;margin:0 0 14px;color:var(--jade-700);}
+.sheet__items{display:flex;flex-direction:column;gap:10px;max-height:34vh;overflow-y:auto;}
+
+.cart-line{display:flex;align-items:center;gap:10px;}
+.cart-line__name{flex:1;font-size:13.5px;font-weight:600;}
+.cart-line__price{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-soft);}
+
+.sheet__summary{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 0;margin-top:10px;border-top:1px dashed var(--line);
+  font-size:14px;
+}
+.sheet__summary strong{font-family:var(--font-mono);font-size:17px;color:var(--lacquer);}
+.sheet__note{
+  width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:10px 12px;font-size:13px;margin-bottom:14px;resize:none;background:var(--paper-card);
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+.btn{
+  border:none;border-radius:999px;font-weight:700;font-size:14.5px;
+  padding:13px 20px;cursor:pointer;transition:transform .1s ease;
+}
+.btn:active{transform:scale(.98);}
+.btn--block{width:100%;}
+.btn--primary{background:var(--lacquer);color:#fff;}
+.btn--outline{background:transparent;border:1.5px solid var(--jade-700);color:var(--jade-700);margin-bottom:10px;}
+.btn--ghost{background:transparent;color:var(--ink-soft);font-weight:600;margin-top:6px;}
+
+/* ==========================================================================
+   VÉ SỐ THỨ TỰ — điểm nhấn thị giác chính của trang
+   Mô phỏng một vé giấy xé từ cuộn vé gọi số, để số thứ tự luôn là điều
+   khách hàng nhìn thấy rõ và nhớ nhất sau khi đặt món.
+   ========================================================================== */
+.sheet__panel--ticket{padding-top:0;}
+.ticket{
+  background:var(--jade-700);
+  color:var(--paper);
+  border-radius:var(--radius-lg);
+  padding:26px 24px 20px;
+  text-align:center;
+  margin:14px 0 18px;
+  position:relative;
+  overflow:hidden;
+}
+.ticket::before,.ticket::after{
+  content:'';
+  position:absolute;
+  width:22px;height:22px;
+  background:var(--paper);
+  border-radius:50%;
+  top:50%;transform:translateY(-50%);
+}
+.ticket::before{left:-11px;}
+.ticket::after{right:-11px;}
+.ticket__eyebrow{
+  font-size:11.5px;
+  letter-spacing:.03em;
+  color:rgba(247,241,227,0.75);
+  margin:0 0 14px;
+}
+.ticket__label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  color:var(--gold);
+  margin:0;
+  font-weight:700;
+}
+.ticket__number{
+  font-family:var(--font-mono);
+  font-weight:700;
+  font-size:56px;
+  margin:2px 0 18px;
+  letter-spacing:.02em;
+}
+.ticket__perforation{
+  border-top:2px dashed rgba(247,241,227,0.3);
+  margin:0 -24px 16px;
+}
+.ticket__table{font-weight:700;font-size:14px;margin:0 0 6px;}
+.ticket__hint{font-size:11.5px;color:rgba(247,241,227,0.65);margin:0;line-height:1.5;}
+
+.pay-choice__title{font-size:13px;font-weight:700;color:var(--ink-soft);margin:0 0 10px;}
+
+/* ==========================================================================
+   VIETQR
+   ========================================================================== */
+.qr-box{
+  background:var(--paper-card);
+  border:1px solid var(--line);
+  border-radius:var(--radius-md);
+  padding:18px;
+  text-align:center;
+  margin-bottom:12px;
+}
+.qr-box img{width:220px;height:220px;margin:0 auto 12px;border-radius:var(--radius-sm);background:#fff;}
+.qr-box__amount{font-family:var(--font-mono);font-weight:700;font-size:22px;color:var(--lacquer);margin:0;}
+.qr-box__desc{font-size:12px;color:var(--ink-soft);margin:4px 0 0;}
+.qr-box__status{
+  font-size:12.5px;text-align:center;color:var(--jade-700);
+  background:#EAF2EE;border-radius:var(--radius-sm);padding:10px;margin:0 0 16px;
+}
+
+/* ==========================================================================
+   RESPONSIVE — desktop preview (widget chính vẫn thiết kế mobile-first vì
+   khách quét QR bằng điện thoại)
+   ========================================================================== */
+@media (min-width:640px){
+  body{max-width:480px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,0.06);min-height:100vh;}
+  .topbar,.tabs{max-width:480px;margin:0 auto;}
+  .cart-bar{max-width:448px;margin:0 auto;left:0;right:0;}
+}
+
+/* Tôn trọng người dùng giảm chuyển động */
+@media (prefers-reduced-motion:reduce){
+  .sheet__panel{animation:none;}
+}
