@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend cho hệ thống gọi món nhà hàng qua QR (Express + MongoDB + Socket.IO)",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",

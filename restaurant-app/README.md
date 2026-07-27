@@ -135,7 +135,59 @@ Ngay khi khách bấm "Đặt cơm", trang admin (đang mở bất kỳ tab nào
 > động ngay từ lượt bấm/gõ đầu tiên của admin sau khi tải trang — bấm vào menu
 > sidebar hoặc bất cứ đâu trên trang một lần là đủ.
 
-## 8. Những phần nên nâng cấp khi đưa vào chạy thật (production)
+## 8. Đưa lên website (Render + MongoDB Atlas — miễn phí)
+
+App đã phục vụ sẵn **khách + admin + API** trong 1 server, nên chỉ cần deploy
+thư mục `restaurant-app/server`.
+
+### Bước A — MongoDB Atlas (database trên mây)
+
+1. Vào https://www.mongodb.com/cloud/atlas → đăng ký / đăng nhập.
+2. **Create** → cluster miễn phí (**M0**).
+3. **Database Access** → tạo user + mật khẩu (nhớ lại).
+4. **Network Access** → **Allow Access from Anywhere** (`0.0.0.0/0`) để Render kết nối được.
+5. **Database** → **Connect** → **Drivers** → copy chuỗi `MONGO_URI` dạng:
+   `mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/restaurant?retryWrites=true&w=majority`
+
+### Bước B — Deploy trên Render
+
+1. Đẩy code lên GitHub (repo hiện tại).
+2. Vào https://dashboard.render.com → **New** → **Web Service**.
+3. Kết nối repo GitHub `restaurant-2`.
+4. Cấu hình:
+   - **Root Directory:** `restaurant-app/server`
+   - **Runtime:** Node
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+   - **Instance:** Free
+5. **Environment** → thêm các biến (bắt buộc):
+
+| Biến | Ví dụ |
+|---|---|
+| `MONGO_URI` | chuỗi Atlas ở bước A |
+| `ADMIN_USERNAME` | `admin` |
+| `ADMIN_PASSWORD` | mật khẩu mạnh của bạn |
+| `JWT_SECRET` | chuỗi ngẫu nhiên dài |
+| `BANK_BIN` | mã BIN ngân hàng (vd `970436`) |
+| `BANK_ACCOUNT_NO` | số tài khoản nhận tiền |
+| `BANK_ACCOUNT_NAME` | tên chủ TK |
+| `TIMEZONE` | `Asia/Ho_Chi_Minh` |
+| `PUBLIC_URL` | URL Render sau khi tạo (vd `https://quan-nha.onrender.com`) |
+
+6. **Create Web Service** → đợi build xong.
+7. Mở URL Render:
+   - Khách: `https://xxxx.onrender.com/?table=01`
+   - Admin: `https://xxxx.onrender.com/admin/login.html`
+8. (Tuỳ chọn) SSH/shell trên Render hoặc chạy local với `MONGO_URI` Atlas rồi `npm run seed` để nạp món mẫu.
+
+> Gói Free của Render sẽ **ngủ** sau ~15 phút không dùng; lần mở lại có thể chờ 30–60 giây.
+
+### Sau khi có domain
+
+Đặt `PUBLIC_URL=https://domain-cua-ban.com`, cấu hình SePay webhook:
+`https://domain-cua-ban.com/api/payments/webhook`.
+
+## 9. Những phần nên nâng cấp khi đưa vào chạy thật (production)
 
 - **Đăng nhập admin nhiều tài khoản**: hiện dùng 1 tài khoản trong `.env`. Nên tạo
   model `Admin` với mật khẩu hash bằng `bcrypt` nếu có nhiều nhân viên.
