@@ -95,6 +95,11 @@ router.post('/', async (req, res) => {
       orderId: order._id,
       orderNumber: order.orderNumber,
       total: order.total,
+      dateKey: order.dateKey,
+      table: order.table,
+      items: order.items,
+      status: order.status,
+      createdAt: order.createdAt,
     });
   } catch (err) {
     console.error(err);
@@ -285,6 +290,29 @@ router.patch('/:id/confirm-payment', requireAdmin, async (req, res) => {
 });
 
 /* ------------------------- CÁC ROUTE PUBLIC (có :id) ------------------------- */
+
+/**
+ * GET /api/orders/history?ids=id1,id2,...
+ * PUBLIC — khách xem lại các đơn đã đặt trên máy này (theo danh sách orderId đã lưu).
+ */
+router.get('/history', async (req, res) => {
+  const raw = String(req.query.ids || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((id) => /^[a-f0-9]{24}$/i.test(id))
+    .slice(0, 30);
+
+  if (raw.length === 0) {
+    return res.json({ orders: [] });
+  }
+
+  const orders = await Order.find({ _id: { $in: raw } })
+    .sort({ createdAt: -1 })
+    .select('orderNumber dateKey table items note total status payment createdAt')
+    .lean();
+
+  res.json({ orders });
+});
 
 /**
  * GET /api/orders/:id

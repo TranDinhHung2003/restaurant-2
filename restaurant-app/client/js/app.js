@@ -417,15 +417,31 @@ async function submitOrder(){
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Đặt cơm thất bại, vui lòng thử lại.');
     }
-    const { orderId, orderNumber, total } = await res.json();
-    currentOrder = { orderId, orderNumber, table: TABLE_ID, total };
+    const data = await res.json();
+    currentOrder = {
+      orderId: data.orderId,
+      orderNumber: data.orderNumber,
+      table: TABLE_ID,
+      total: data.total,
+    };
+
+    saveOrderToHistory({
+      orderId: data.orderId,
+      orderNumber: data.orderNumber,
+      table: data.table || TABLE_ID,
+      total: data.total,
+      dateKey: data.dateKey,
+      items: data.items || [],
+      status: data.status || 'pending',
+      createdAt: data.createdAt || new Date().toISOString(),
+    });
 
     cart.clear();
     renderMenu();
     renderCartBar();
     cartSheet.hidden = true;
 
-    document.getElementById('ticketNumber').textContent = orderNumber;
+    document.getElementById('ticketNumber').textContent = data.orderNumber;
     document.getElementById('ticketTable').textContent = 'Bàn ' + TABLE_ID;
     document.getElementById('ticketSheet').hidden = false;
   } catch (err) {
@@ -437,6 +453,143 @@ async function submitOrder(){
 }
 
 placeOrderBtn.addEventListener('click', submitOrder);
+
+// ---------------------------------------------------------------------------
+// 9b. LỊCH SỬ ĐẶT MÓN — lưu trên máy khách + cập nhật trạng thái từ server
+// ---------------------------------------------------------------------------
+const HISTORY_KEY = 'qn_order_history';
+const STATUS_LABEL = {
+  pending: 'Chờ chế biến',
+  preparing: 'Đang chế biến',
+  served: 'Đã phục vụ',
+  cancelled: 'Đã huỷ',
+};
+
+function readLocalHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalHistory(list) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 30)));
+}
+
+function saveOrderToHistory(entry) {
+  const list = readLocalHistory().filter((o) => o.orderId !== entry.orderId);
+  list.unshift(entry);
+  writeLocalHistory(list);
+}
+
+function formatHistoryTime(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function renderHistoryList(orders) {
+  const el = document.getElementById('historyList');
+  if (!orders.length) {
+    el.innerHTML = '<p class="empty-hint">Chưa có đơn nào. Đặt món xong sẽ hiện số thứ tự tại đây.</p>';
+    return;
+  }
+
+  el.innerHTML = orders.map((o) => {
+    const items = (o.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+    const pay = o.payment?.status === 'paid'
+      ? 'Đã thanh toán'
+      : (o.payment?.method === 'vietqr' ? 'Chờ CK' : (o.payment?.method === 'cash' ? 'Tiền mặt' : 'Chưa TT'));
+    return `
+      <article class="history-card">
+        <div class="history-card__top">
+          <p class="history-card__number">#${o.orderNumber}</p>
+          <span class="history-card__status history-card__status--${o.status || 'pending'}">${STATUS_LABEL[o.status] || o.status || '—'}</span>
+        </div>
+        <p class="history-card__meta">Bàn ${o.table || '—'} · ${formatHistoryTime(o.createdAt)}</p>
+        <p class="history-card__items">${items || '—'}</p>
+        <div class="history-card__row">
+          <strong>${formatVnd(o.total || 0)}</strong>
+          <span>${pay}</span>
+        </div>
+        ${o.payment?.status !== 'paid' && o.status !== 'cancelled' ? `
+          <div class="history-card__actions">
+            <button class="btn btn--small btn--primary" type="button" data-history-pay="${o._id || o.orderId}">Thanh toán lại</button>
+          </div>` : ''}
+      </article>
+    `;
+  }).join('');
+}
+
+async function openHistorySheet() {
+  const sheet = document.getElementById('historySheet');
+  sheet.hidden = false;
+  const local = readLocalHistory();
+  renderHistoryList(local);
+
+  const ids = local.map((o) => o.orderId || o._id).filter(Boolean);
+  if (!ids.length) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/history?ids=${ids.join(',')}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const orders = data.orders || [];
+    if (!orders.length) return;
+
+    // Đồng bộ trạng thái mới nhất vào localStorage
+    const byId = Object.fromEntries(orders.map((o) => [String(o._id), o]));
+    const merged = local.map((o) => {
+      const fresh = byId[String(o.orderId || o._id)];
+      if (!fresh) return o;
+      return {
+        orderId: String(fresh._id),
+        orderNumber: fresh.orderNumber,
+        table: fresh.table,
+        total: fresh.total,
+        dateKey: fresh.dateKey,
+        items: fresh.items,
+        status: fresh.status,
+        payment: fresh.payment,
+        createdAt: fresh.createdAt,
+      };
+    });
+    writeLocalHistory(merged);
+    renderHistoryList(orders);
+  } catch {
+    /* giữ bản local nếu mạng lỗi */
+  }
+}
+
+document.getElementById('historyBtn').addEventListener('click', openHistorySheet);
+
+document.getElementById('historyList').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-history-pay]');
+  if (!btn) return;
+  const id = btn.dataset.historyPay;
+  const local = readLocalHistory().find((o) => String(o.orderId || o._id) === String(id));
+  if (!local) return;
+  currentOrder = {
+    orderId: local.orderId || local._id,
+    orderNumber: local.orderNumber,
+    table: local.table || TABLE_ID,
+    total: local.total,
+  };
+  document.getElementById('historySheet').hidden = true;
+  document.getElementById('ticketNumber').textContent = local.orderNumber;
+  document.getElementById('ticketTable').textContent = 'Bàn ' + (local.table || TABLE_ID);
+  document.getElementById('ticketSheet').hidden = false;
+});
 
 // ---------------------------------------------------------------------------
 // 10. THANH TOÁN — chọn Tiền mặt hoặc VietQR

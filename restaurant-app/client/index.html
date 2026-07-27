@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <!-- ?v=... : đổi số này mỗi lần sửa CSS/JS để trình duyệt khách tải bản mới,
      không dùng nhầm bản cache cũ -->
-<link rel="stylesheet" href="css/style.css?v=20260727e">
+<link rel="stylesheet" href="css/style.css?v=20260728a">
 </head>
 <body>
 
@@ -24,9 +24,14 @@
           <p class="topbar__sub">Cơm nhà · món Việt</p>
         </div>
       </div>
-      <div class="topbar__table" id="tableBadge">
-        <span class="topbar__table-label">Bàn</span>
-        <span class="topbar__table-number" id="tableNumber">—</span>
+      <div class="topbar__actions">
+        <button class="topbar__history" id="historyBtn" type="button" title="Lịch sử đặt món">
+          📋 <span>Đơn của tôi</span>
+        </button>
+        <div class="topbar__table" id="tableBadge">
+          <span class="topbar__table-label">Bàn</span>
+          <span class="topbar__table-number" id="tableNumber">—</span>
+        </div>
       </div>
     </div>
   </header>
@@ -168,6 +173,20 @@
     </div>
   </div>
 
+  <!-- ===== LỊCH SỬ ĐẶT MÓN CỦA KHÁCH ===== -->
+  <div class="sheet" id="historySheet" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel">
+      <button class="sheet__close" data-close aria-label="Đóng">✕</button>
+      <div class="sheet__handle"></div>
+      <h2 class="sheet__title">Đơn đã đặt</h2>
+      <p class="history__hint">Các số thứ tự bạn đã đặt trên điện thoại này. Theo dõi màn hình gọi số để nhận món.</p>
+      <div class="history__list" id="historyList">
+        <p class="empty-hint">Chưa có đơn nào. Đặt món xong sẽ hiện số thứ tự tại đây.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== VIETQR ===== -->
   <div class="sheet" id="qrSheet" hidden>
     <div class="sheet__backdrop" data-close></div>
@@ -188,6 +207,6 @@
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="js/app.js?v=20260727f"></script>
+  <script src="js/app.js?v=20260728a"></script>
 </body>
 </html>

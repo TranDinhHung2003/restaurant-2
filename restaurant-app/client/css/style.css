@@ -109,6 +109,18 @@ textarea,input{font-family:inherit;}
   font-size:11.5px;
   color:rgba(247,241,227,0.7);
 }
+.topbar__actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+.topbar__history{
+  display:flex;align-items:center;gap:4px;
+  border:1px solid rgba(247,241,227,0.28);
+  background:rgba(247,241,227,0.1);
+  color:var(--paper);
+  border-radius:999px;
+  padding:8px 12px;
+  font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;
+}
+.topbar__history span{display:none;}
 .topbar__table{
   display:flex;
   flex-direction:column;
@@ -122,6 +134,29 @@ textarea,input{font-family:inherit;}
 }
 .topbar__table-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(247,241,227,0.7);}
 .topbar__table-number{font-family:var(--font-mono);font-weight:700;font-size:18px;margin-top:2px;}
+
+.history__hint{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;line-height:1.45;}
+.history__list{display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;}
+.history-card{
+  background:var(--paper-card);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:12px 14px;
+}
+.history-card__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.history-card__number{font-family:var(--font-mono);font-weight:700;font-size:28px;color:var(--jade-700);margin:0;line-height:1;}
+.history-card__status{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:999px;background:#F1EAD6;color:var(--ink-soft);}
+.history-card__status--pending{background:#FBEBD9;color:#8A5A0A;}
+.history-card__status--preparing{background:#E4EEFB;color:#1D5FA6;}
+.history-card__status--served{background:#E4F1EA;color:var(--ok);}
+.history-card__status--cancelled{background:#F3E3E1;color:var(--danger);}
+.history-card__meta{font-size:12px;color:var(--ink-soft);margin:0 0 6px;}
+.history-card__items{font-size:13px;margin:0 0 8px;color:var(--ink);line-height:1.4;}
+.history-card__row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--ink-soft);}
+.history-card__row strong{font-family:var(--font-mono);color:var(--lacquer);font-size:14px;}
+.history-card__actions{margin-top:10px;}
+
+@media (min-width:480px){
+  .topbar__history span{display:inline;}
+}
 
 /* ==========================================================================
    HERO — GIỚI THIỆU QUÁN
