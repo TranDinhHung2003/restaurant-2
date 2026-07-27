@@ -475,7 +475,9 @@ async function openVietQr(order){
     document.getElementById('qrImage').src = qrUrl;
     document.getElementById('qrAmount').textContent = formatVnd(amount);
     document.getElementById('qrDesc').textContent = 'Nội dung chuyển khoản: ' + addInfo;
-    statusEl.textContent = 'Đang chờ xác nhận thanh toán từ nhà hàng…';
+    statusEl.textContent = 'Quét mã / chuyển khoản đúng số tiền và nội dung, rồi bấm "Tôi đã chuyển khoản".';
+    document.getElementById('reportPaidBtn').hidden = false;
+    document.getElementById('reportPaidBtn').disabled = false;
 
     pollPaymentStatus(order.orderId);
   } catch {
@@ -483,8 +485,32 @@ async function openVietQr(order){
   }
 }
 
-// Kiểm tra định kỳ xem thanh toán đã được xác nhận chưa (admin bấm tay hoặc
-// webhook ngân hàng tự xác nhận) — mỗi 4 giây, tối đa 2 phút.
+document.getElementById('reportPaidBtn').addEventListener('click', async () => {
+  if (!currentOrder?.orderId) return;
+  const btn = document.getElementById('reportPaidBtn');
+  const statusEl = document.getElementById('qrStatus');
+  btn.disabled = true;
+  btn.textContent = 'Đang xác nhận…';
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/${currentOrder.orderId}/report-paid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không xác nhận được thanh toán');
+    }
+    statusEl.textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
+    btn.hidden = true;
+  } catch (err) {
+    statusEl.textContent = err.message || 'Có lỗi, vui lòng thử lại hoặc báo nhân viên.';
+    btn.disabled = false;
+    btn.textContent = '✓ Tôi đã chuyển khoản';
+  }
+});
+
+// Kiểm tra định kỳ xem thanh toán đã được xác nhận chưa (khách báo đã CK,
+// webhook ngân hàng, hoặc admin xác nhận tay) — mỗi 4 giây, tối đa 2 phút.
 function pollPaymentStatus(orderId){
   let attempts = 0;
   const timer = setInterval(async () => {
@@ -494,10 +520,11 @@ function pollPaymentStatus(orderId){
       const order = await res.json();
       if (order.payment.status === 'paid') {
         document.getElementById('qrStatus').textContent = '✅ Đã nhận được thanh toán. Cảm ơn bạn!';
+        document.getElementById('reportPaidBtn').hidden = true;
         clearInterval(timer);
       }
     } catch { /* bỏ qua lỗi tạm thời, thử lại lần sau */ }
-    if (attempts >= 30) clearInterval(timer); // ~2 phút thì dừng để không gọi API mãi
+    if (attempts >= 30) clearInterval(timer);
   }, 4000);
 }
 

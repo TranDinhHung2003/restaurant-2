@@ -55,11 +55,25 @@ function ringOnce() {
   });
 }
 
-/** Chuông "ting-ting-ting" khi có đơn mới — dồn dập hơn 1 tiếng đơn để chắc bếp nghe thấy. */
-function ringNewOrder() {
+/** Một cụm "ting-ting-ting". */
+function ringBurst() {
   ringOnce();
   setTimeout(ringOnce, 260);
   setTimeout(ringOnce, 520);
+}
+
+/** Chuông reo liên tục cho đến khi admin bấm "Bắt đầu chế biến". */
+let ringTimer = null;
+function startContinuousRing() {
+  if (ringTimer) return;
+  ringBurst();
+  ringTimer = setInterval(ringBurst, 1800);
+}
+function stopContinuousRing() {
+  if (ringTimer) {
+    clearInterval(ringTimer);
+    ringTimer = null;
+  }
 }
 
 const soundToggle = document.getElementById('soundToggle');
@@ -74,17 +88,22 @@ soundToggle.addEventListener('click', () => {
   soundEnabled = !soundEnabled;
   localStorage.setItem('admin_sound_enabled', soundEnabled ? 'on' : 'off');
   renderSoundToggle();
-  if (soundEnabled) ringOnce(); // reo thử 1 tiếng để admin biết đã bật lại
+  if (soundEnabled) {
+    if (pendingNewOrders.length > 0) startContinuousRing();
+    else ringOnce();
+  } else {
+    stopContinuousRing();
+  }
 });
 renderSoundToggle();
 
 /* =========================================================================
    MODAL ĐƠN HÀNG MỚI — hiện to giữa màn hình, xếp hàng nếu nhiều đơn về
-   liên tiếp (vd nhiều bàn đặt cùng lúc), reo chuông cho từng đơn.
+   liên tiếp. Chuông reo LIÊN TỤC cho đến khi admin bấm "Bắt đầu chế biến".
    ========================================================================= */
 const newOrderModal = document.getElementById('newOrderModal');
 const newOrderQueueEl = document.getElementById('newOrderQueue');
-let pendingNewOrders = []; // đơn mới đã reo chuông nhưng admin chưa "xem"
+let pendingNewOrders = []; // đơn mới chưa được admin xác nhận
 
 function showNewOrderModal(order) {
   document.getElementById('newOrderNumber').textContent = order.orderNumber;
@@ -103,24 +122,47 @@ function showNewOrderModal(order) {
 
   newOrderModal.hidden = false;
   newOrderModal.dataset.orderId = order._id;
+  startContinuousRing();
 }
 
-function closeNewOrderModal() {
+/** Đóng modal tạm (chuông vẫn kêu). Modal sẽ hiện lại sau vài giây. */
+let dismissTimer = null;
+function dismissNewOrderModal() {
   newOrderModal.hidden = true;
-  pendingNewOrders.shift();
+  clearTimeout(dismissTimer);
   if (pendingNewOrders.length > 0) {
-    // Hiện đơn tiếp theo trong hàng đợi sau một nhịp ngắn, kèm reo chuông lại
-    setTimeout(() => { ringNewOrder(); showNewOrderModal(pendingNewOrders[0]); }, 450);
+    dismissTimer = setTimeout(() => {
+      if (pendingNewOrders.length > 0 && newOrderModal.hidden) {
+        showNewOrderModal(pendingNewOrders[0]);
+      }
+    }, 8000);
   }
 }
 
-document.getElementById('newOrderCloseBtn').addEventListener('click', closeNewOrderModal);
+/** Xác nhận đơn đang xem: tắt chuông nếu hết hàng đợi, hiện đơn tiếp theo nếu còn. */
+function acknowledgeCurrentOrder() {
+  clearTimeout(dismissTimer);
+  pendingNewOrders.shift();
+  newOrderModal.hidden = true;
+
+  if (pendingNewOrders.length > 0) {
+    setTimeout(() => showNewOrderModal(pendingNewOrders[0]), 450);
+  } else {
+    stopContinuousRing();
+  }
+}
+
+document.getElementById('newOrderCloseBtn').addEventListener('click', () => {
+  // Chỉ ẩn modal — chuông vẫn reo đến khi bấm xác nhận.
+  dismissNewOrderModal();
+});
+
 document.getElementById('newOrderAckBtn').addEventListener('click', async () => {
   const id = newOrderModal.dataset.orderId;
   try {
     await apiFetch(`/api/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'preparing' }) });
   } catch { /* đơn có thể đã đổi trạng thái từ nơi khác, bỏ qua lỗi */ }
-  closeNewOrderModal();
+  acknowledgeCurrentOrder();
 });
 
 /* =========================================================================
@@ -139,14 +181,12 @@ socket.on('new_order', (order) => {
   renderOrders(true);
 
   pendingNewOrders.push(order);
-  ringNewOrder();
-  if (pendingNewOrders.length === 1) {
-    showNewOrderModal(order);
+  if (pendingNewOrders.length === 1 || newOrderModal.hidden) {
+    showNewOrderModal(pendingNewOrders[0]);
   } else {
-    // Modal đơn trước vẫn đang mở -> chỉ cập nhật số đơn còn chờ, không
-    // giật màn hình sang đơn mới (admin cần xử lý xong đơn đang xem trước).
     newOrderQueueEl.hidden = false;
     newOrderQueueEl.textContent = `+ còn ${pendingNewOrders.length - 1} đơn mới khác đang chờ xem`;
+    startContinuousRing();
   }
 });
 socket.on('order_updated', (updated) => {
@@ -157,10 +197,31 @@ socket.on('order_updated', (updated) => {
     loadRevenue();
   }
 });
+socket.on('payment_confirmed', (order) => {
+  showPaymentToast(order);
+  if (document.getElementById('panel-revenue').classList.contains('is-active')) {
+    loadRevenue();
+  }
+});
 socket.on('orders_reset', () => {
   loadOrders();
 });
+socket.on('revenue_reset', () => {
+  loadOrders();
+  if (document.getElementById('panel-revenue').classList.contains('is-active')) {
+    loadRevenue();
+  }
+});
 
+function showPaymentToast(order) {
+  const toast = document.getElementById('paymentToast');
+  document.getElementById('paymentToastTitle').textContent = 'Thanh toán tự động';
+  document.getElementById('paymentToastBody').textContent =
+    `Đơn #${order.orderNumber} · Bàn ${order.table} · ${formatVnd(order.total)}`;
+  toast.hidden = false;
+  clearTimeout(showPaymentToast._timer);
+  showPaymentToast._timer = setTimeout(() => { toast.hidden = true; }, 4500);
+}
 /* =========================================================================
    PANEL: ĐƠN HÀNG
    ========================================================================= */
@@ -233,12 +294,15 @@ function renderOrders(justAdded = false) {
       <div class="order-card__row">
         <span class="order-card__total">${formatVnd(o.total)}</span>
         <span class="badge badge--${o.payment.status}">
-          ${o.payment.status === 'paid' ? 'Đã thanh toán' : (o.payment.method === 'vietqr' ? 'Chờ chuyển khoản' : 'Chưa thanh toán')}
+          ${o.payment.status === 'paid'
+            ? (o.payment.method === 'vietqr' ? 'Đã CK (tự động)' : 'Đã thanh toán')
+            : (o.payment.method === 'vietqr' ? 'Chờ chuyển khoản' : 'Chưa thanh toán')}
         </span>
       </div>
       <div class="order-card__actions">
         ${STATUS_NEXT[o.status] ? `<button class="btn btn--small btn--primary" data-action="status" data-id="${o._id}" data-next="${STATUS_NEXT[o.status]}">Chuyển: ${STATUS_LABEL[STATUS_NEXT[o.status]]}</button>` : ''}
-        ${o.payment.status !== 'paid' ? `<button class="btn btn--small btn--danger-outline" data-action="pay" data-id="${o._id}">Xác nhận đã thanh toán</button>` : ''}
+        ${o.payment.status !== 'paid' && o.payment.method !== 'vietqr' ? `<button class="btn btn--small btn--danger-outline" data-action="pay" data-id="${o._id}">Xác nhận đã thanh toán</button>` : ''}
+        ${o.payment.status !== 'paid' && o.payment.method === 'vietqr' ? `<button class="btn btn--small btn--ghost" data-action="pay" data-id="${o._id}" title="Fallback nếu khách chưa bấm xác nhận">Xác nhận tay (fallback)</button>` : ''}
         ${o.status !== 'cancelled' && o.status !== 'served' ? `<button class="btn btn--small btn--ghost" data-action="cancel" data-id="${o._id}">Huỷ đơn</button>` : ''}
       </div>
     </article>
@@ -328,6 +392,27 @@ document.getElementById('revenuePeriodTabs').addEventListener('click', (e) => {
 });
 
 document.getElementById('revenueDate').addEventListener('change', () => loadRevenue());
+
+document.getElementById('resetRevenueBtn').addEventListener('click', async () => {
+  const ok = confirm(
+    'Bạn có muốn reset doanh thu không?\n\nNếu reset, hệ thống sẽ mất hết dữ liệu doanh thu trước đó của kỳ đang xem. Thao tác không thể hoàn tác.'
+  );
+  if (!ok) return;
+
+  const dateInput = document.getElementById('revenueDate');
+  const date = dateInput.value || currentDateKey || todayDateInputValue();
+  try {
+    const res = await apiFetch('/api/orders/revenue/reset', {
+      method: 'POST',
+      body: JSON.stringify({ period: revenuePeriod, date }),
+    });
+    alert(res.message);
+    loadRevenue();
+    loadOrders();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 /* =========================================================================
    PANEL: THỰC ĐƠN

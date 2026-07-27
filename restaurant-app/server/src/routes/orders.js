@@ -123,14 +123,7 @@ router.get('/', requireAdmin, async (req, res) => {
   });
 });
 
-/**
- * GET /api/orders/revenue?period=day|week|month&date=YYYY-MM-DD
- * ADMIN — tổng doanh thu đã thanh toán theo ngày/tuần/tháng.
- */
-router.get('/revenue', requireAdmin, async (req, res) => {
-  const period = req.query.period || 'day';
-  const dateKey = req.query.date || getDateKey();
-
+function buildRevenuePeriodMatch(period, dateKey) {
   let match = { ...PAID_REVENUE_MATCH };
   let periodLabel = '';
 
@@ -146,17 +139,62 @@ router.get('/revenue', requireAdmin, async (req, res) => {
     match.dateKey = { $gte: startKey, $lte: endKey };
     const { year, month } = startKey.split('-').map(Number);
     periodLabel = `Tháng ${month}/${year}`;
+  } else if (period === 'all') {
+    periodLabel = 'Toàn bộ';
   } else {
+    return null;
+  }
+
+  return { match, periodLabel };
+}
+
+/**
+ * GET /api/orders/revenue?period=day|week|month&date=YYYY-MM-DD
+ * ADMIN — tổng doanh thu đã thanh toán theo ngày/tuần/tháng.
+ */
+router.get('/revenue', requireAdmin, async (req, res) => {
+  const period = req.query.period || 'day';
+  const dateKey = req.query.date || getDateKey();
+  const built = buildRevenuePeriodMatch(period, dateKey);
+  if (!built) {
     return res.status(400).json({ message: 'period phải là day, week hoặc month' });
   }
 
-  const stats = await aggregateRevenue(match);
+  const stats = await aggregateRevenue(built.match);
 
   res.json({
     period,
     dateKey,
-    periodLabel,
+    periodLabel: built.periodLabel,
     ...stats,
+  });
+});
+
+/**
+ * POST /api/orders/revenue/reset
+ * ADMIN — xoá dữ liệu doanh thu (đưa các đơn đã thanh toán về unpaid).
+ * body: { period: 'day'|'week'|'month'|'all', date?: 'YYYY-MM-DD' }
+ */
+router.post('/revenue/reset', requireAdmin, async (req, res) => {
+  const period = req.body?.period || 'all';
+  const dateKey = req.body?.date || getDateKey();
+  const built = buildRevenuePeriodMatch(period, dateKey);
+  if (!built) {
+    return res.status(400).json({ message: 'period phải là day, week, month hoặc all' });
+  }
+
+  const result = await Order.updateMany(built.match, {
+    $set: { 'payment.status': 'unpaid', 'payment.paidAt': null },
+  });
+
+  req.app.get('io').to('admin_room').emit('revenue_reset', { period, dateKey });
+
+  res.json({
+    message: `Đã reset doanh thu (${built.periodLabel}). Dữ liệu doanh thu trước đó đã bị xoá.`,
+    period,
+    dateKey,
+    periodLabel: built.periodLabel,
+    resetCount: result.modifiedCount,
   });
 });
 
@@ -210,7 +248,7 @@ router.patch('/:id/status', requireAdmin, async (req, res) => {
 
 /**
  * PATCH /api/orders/:id/confirm-payment
- * ADMIN — xác nhận ĐÃ THANH TOÁN.
+ * ADMIN — xác nhận ĐÃ THANH TOÁN (tiền mặt hoặc fallback VietQR).
  */
 router.patch('/:id/confirm-payment', requireAdmin, async (req, res) => {
   const order = await Order.findByIdAndUpdate(
@@ -220,6 +258,7 @@ router.patch('/:id/confirm-payment', requireAdmin, async (req, res) => {
   );
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
   req.app.get('io').to('admin_room').emit('order_updated', order);
+  req.app.get('io').to('admin_room').emit('payment_confirmed', order);
   res.json(order);
 });
 
@@ -267,6 +306,31 @@ router.patch('/:id/payment-method', async (req, res) => {
   );
   if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
   req.app.get('io').to('admin_room').emit('order_updated', order);
+  res.json(order);
+});
+
+/**
+ * POST /api/orders/:id/report-paid
+ * PUBLIC — khách báo đã chuyển khoản VietQR.
+ * Hệ thống TỰ ĐỘNG xác nhận thanh toán cho admin (không cần admin bấm tay).
+ * Webhook ngân hàng (nếu cấu hình) cũng tự xác nhận tương tự.
+ */
+router.post('/:id/report-paid', async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn' });
+  if (order.payment.status === 'paid') {
+    return res.json(order);
+  }
+  if (order.payment.method !== 'vietqr') {
+    return res.status(400).json({ message: 'Chỉ áp dụng cho đơn thanh toán VietQR' });
+  }
+
+  order.payment.status = 'paid';
+  order.payment.paidAt = new Date();
+  await order.save();
+
+  req.app.get('io').to('admin_room').emit('order_updated', order);
+  req.app.get('io').to('admin_room').emit('payment_confirmed', order);
   res.json(order);
 });
 

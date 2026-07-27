@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bảng điều khiển — Quán Nhà</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=20260727c">
+<link rel="stylesheet" href="css/style.css?v=20260727d">
 </head>
 <body>
   <div class="app-shell">
@@ -70,6 +70,7 @@
               <button class="period-tab" data-period="week" type="button">Tuần</button>
               <button class="period-tab" data-period="month" type="button">Tháng</button>
             </div>
+            <button class="btn btn--small btn--danger-outline" id="resetRevenueBtn" type="button">Reset doanh thu</button>
           </div>
         </header>
         <p class="panel__subtitle" id="revenuePeriodLabel">—</p>
@@ -91,7 +92,7 @@
             <p class="revenue-card__value" id="revenueVietqr">0đ</p>
           </div>
         </div>
-        <p class="panel__hint">Chỉ tính các đơn đã xác nhận thanh toán, không bao gồm đơn đã huỷ.</p>
+        <p class="panel__hint">Chỉ tính các đơn đã thanh toán (tự động khi khách chuyển khoản hoặc admin xác nhận tiền mặt). Reset doanh thu sẽ xoá dữ liệu doanh thu kỳ đang xem.</p>
       </section>
 
       <!-- ===== PANEL: THỰC ĐƠN ===== -->
@@ -140,7 +141,7 @@
       </div>
       <p class="new-order__queue" id="newOrderQueue" hidden></p>
       <div class="new-order__actions">
-        <button class="btn btn--ghost" id="newOrderCloseBtn">Đóng</button>
+        <button class="btn btn--ghost" id="newOrderCloseBtn">Ẩn tạm</button>
         <button class="btn btn--primary" id="newOrderAckBtn">✓ Bắt đầu chế biến</button>
       </div>
     </div>
@@ -172,8 +173,14 @@
     </form>
   </div>
 
+  <!-- Toast thông báo thanh toán tự động -->
+  <div class="toast" id="paymentToast" hidden>
+    <strong id="paymentToastTitle">Đã nhận thanh toán</strong>
+    <span id="paymentToastBody"></span>
+  </div>
+
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="js/api.js?v=20260727c"></script>
-  <script src="js/dashboard.js?v=20260727c"></script>
+  <script src="js/api.js?v=20260727d"></script>
+  <script src="js/dashboard.js?v=20260727d"></script>
 </body>
 </html>

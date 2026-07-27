@@ -85,9 +85,9 @@ router.post('/webhook', async (req, res) => {
     await order.save();
     confirmed.push({ orderId: order._id, orderNumber: order.orderNumber });
 
-    // Báo realtime: admin dashboard cập nhật thẻ đơn, khách đang mở màn QR
-    // (đang poll GET /api/orders/:id) sẽ thấy "Đã nhận được thanh toán".
+    // Tự động xác nhận cho admin — không cần bấm tay "Xác nhận đã thanh toán".
     req.app.get('io').to('admin_room').emit('order_updated', order);
+    req.app.get('io').to('admin_room').emit('payment_confirmed', order);
   }
 
   // Luôn trả 200 để dịch vụ webhook không retry vô hạn với giao dịch không khớp
