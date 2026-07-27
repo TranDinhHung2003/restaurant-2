@@ -53,8 +53,14 @@ async function fetchMenu(){
   // Backend đã LỌC SẴN theo khung giờ phục vụ (availableHours) — món ngoài giờ
   // không được trả về, nên khách chỉ thấy các món đang bán ở thời điểm hiện tại.
 
-  const NEW_WITHIN_DAYS = 7; // món thêm trong 7 ngày gần đây được gắn nhãn "Mới"
+  const NEW_WITHIN_DAYS = 7;
   const now = Date.now();
+  const isRecent = (raw) => raw.createdAt && (now - new Date(raw.createdAt).getTime()) < NEW_WITHIN_DAYS * 86400000;
+
+  // Chỉ gắn nhãn "Mới" khi món đó mới so với PHẦN CÒN LẠI của thực đơn.
+  // Nếu cả thực đơn đều vừa tạo (vd vừa chạy seed / quán mới mở) thì không
+  // gắn nhãn cho món nào — tránh cảnh mọi món đều dán "Mới" trông rối mắt.
+  const hasEstablishedItems = flatItems.some((raw) => !isRecent(raw));
 
   // Nhóm theo category để hiển thị theo tab, giữ đúng field cần cho renderMenu()
   const grouped = {};
@@ -68,7 +74,7 @@ async function fetchMenu(){
       image: raw.image || '',
       available: raw.availableNow ?? raw.available,
       hours: raw.availableHours || '', // vd "10:30-14:00" — khung giờ bán
-      isNew: raw.createdAt && (now - new Date(raw.createdAt).getTime()) < NEW_WITHIN_DAYS * 86400000,
+      isNew: hasEstablishedItems && isRecent(raw),
     };
     if (!grouped[raw.category]) grouped[raw.category] = [];
     grouped[raw.category].push(item);
@@ -160,19 +166,19 @@ function renderMenu(){
     return;
   }
 
+  // Mỗi danh mục là một <section> chứa lưới món, để trên màn hình rộng
+  // các thẻ món tự xếp thành 2–4 cột (CSS .dish-grid lo phần chia cột).
   sections.forEach((section, idx) => {
-    const title = document.createElement('h3');
-    title.className = 'menu__section-title';
-    title.id = 'sec-' + idx;
-    title.textContent = section.category;
-    menuEl.appendChild(title);
-
-    if (CATEGORY_TAGLINE[section.category]) {
-      const sub = document.createElement('p');
-      sub.className = 'menu__section-sub';
-      sub.textContent = CATEGORY_TAGLINE[section.category];
-      menuEl.appendChild(sub);
-    }
+    const sec = document.createElement('section');
+    sec.className = 'menu__section';
+    sec.id = 'sec-' + idx;
+    sec.innerHTML = `
+      <h3 class="menu__section-title">${section.category}</h3>
+      ${CATEGORY_TAGLINE[section.category]
+        ? `<p class="menu__section-sub">${CATEGORY_TAGLINE[section.category]}</p>`
+        : ''}
+      <div class="dish-grid"></div>`;
+    const grid = sec.querySelector('.dish-grid');
 
     section.items.forEach(item => {
       const qty = cart.get(item.id)?.qty || 0;
@@ -201,8 +207,10 @@ function renderMenu(){
             }
           </div>
         </div>`;
-      menuEl.appendChild(card);
+      grid.appendChild(card);
     });
+
+    menuEl.appendChild(sec);
   });
 
   // Bấm vào thẻ món -> mở CHI TIẾT MÓN (trừ khi bấm vào nút +/-/Thêm)
